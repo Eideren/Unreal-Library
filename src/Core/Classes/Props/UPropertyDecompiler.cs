@@ -33,9 +33,14 @@ namespace UELib.Core
 
         public override string Decompile()
         {
-            return FormatFlags() + GetFriendlyType() 
-                                 + " " + Name
-                                 + FormatSize() 
+            string postfix = "";
+            if (_IsArray)
+                postfix = " = new " + GetFriendlyType() + FormatSize();
+            if ((PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm) != 0)
+                postfix = " = default";
+            
+            return FormatFlags() + GetFriendlyType() + FormatIsArray() 
+                                 + " " + Name + postfix
                                  + DecompileMeta();
         }
 
@@ -50,6 +55,15 @@ namespace UELib.Core
                 ? ArrayEnum.GetFriendlyType() 
                 : ArrayDim.ToString( CultureInfo.InvariantCulture );
             return $"[{arraySizeDecl}]";
+        }
+
+        private string FormatIsArray()
+        {
+            if( !_IsArray )
+            {
+                return string.Empty;
+            }
+            return "[]";
         }
 
         private string FormatAccess()
@@ -72,10 +86,14 @@ namespace UELib.Core
         {
             ulong copyFlags = PropertyFlags;
             var output = string.Empty;
+            var importantFlags = string.Empty;
 
             if( PropertyFlags == 0 )
             {
-                return FormatAccess();
+                output = FormatAccess();
+                if (string.IsNullOrWhiteSpace(output) == false)
+                    output = $"/*{output}*/";
+                return output;
             }
 
             if( (PropertyFlags & (ulong)Flags.PropertyFlagsLO.NeedCtorLink) != 0 )
@@ -147,7 +165,7 @@ namespace UELib.Core
 
                 if( (PropertyFlags & (ulong)Flags.PropertyFlagsLO.OutParm) != 0 )
                 {
-                    output += "out ";
+                    importantFlags += "ref ";
                     copyFlags &= ~(ulong)Flags.PropertyFlagsLO.OutParm;
                 }
 
@@ -464,6 +482,9 @@ namespace UELib.Core
             }
             // alright...
             //return "/*" + UnrealMethods.FlagToString( PropertyFlags ) + "*/ " + output;
+            if (string.IsNullOrWhiteSpace(output) == false)
+                output = $"/*{output}*/";
+            output += importantFlags;
             return copyFlags != 0 ? "/*" + UnrealMethods.FlagToString( copyFlags ) + "*/ " + output : output;
         }
     }

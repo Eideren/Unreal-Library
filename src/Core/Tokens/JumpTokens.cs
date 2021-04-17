@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace UELib.Core
 {
@@ -477,7 +478,37 @@ namespace UELib.Core
                     // foreach FunctionCall
                     string expression = DecompileNext();
                     Decompiler._CanAddSemicolon = false;    // Undo
-                    return "foreach " + expression;
+                    var m = Regex.Match(expression, @"(?<Func>[^\(]*)(?<Params>\([^$]*)");
+                    var func = m.Groups["Func"].ToString();
+                    var parametersText = m.Groups["Params"].ToString();
+                    parametersText = parametersText.Substring(1, parametersText.Length - 2);
+                    var parameters = parametersText.Split(',', StringSplitOptions.TrimEntries);
+
+                    var vars = "";
+                    var finalParameters = "";
+                    if (parameters.Length == 2)
+                    {
+                        vars = parameters[1];
+                        finalParameters = parameters[0];
+                    }
+                    else
+                    {
+                        foreach (var parameter in parameters)
+                        {
+                            if (parameter.StartsWith("ref "))
+                                vars += parameter.Remove(0, 4) + " ";
+                            else
+                                finalParameters += parameter + ", ";
+                        }
+
+                        if (finalParameters != "")
+                            finalParameters = finalParameters.Substring(0, finalParameters.Length - 2);
+                    }
+                    if (vars == "")
+                        vars = "/*no refs specified*/";
+
+                    var enumName = $"e{Position}";
+                    return $"using var {enumName} = {func}({finalParameters}).GetEnumerator();\r\n/*foreach {expression}*/while({enumName}.MoveNext() && ({vars} = {enumName}.Current) == {vars})";
                 }
             }
 
@@ -507,8 +538,14 @@ namespace UELib.Core
                     Commentize();
 
                     // foreach ArrayVariable( Parameters )
-                    string output = "foreach " + DecompileNext() + "(" + DecompileNext();
-                    output += (HasSecondParm ? ", " : String.Empty) + DecompileNext();
+                    var iterator = DecompileNext();
+                    var varName = DecompileNext();
+                    var param = DecompileNext();
+                    string output = "foreach(var " + varName + " in " + iterator;
+                    if (HasSecondParm)
+                        output += (HasSecondParm ? ", " : String.Empty) + param;
+                    else
+                        output = $"using var v = {iterator}.GetEnumerator();for (; v.MoveNext() && ({varName} = v.Current)=={varName}; ";
                     Decompiler._CanAddSemicolon = false;
                     return output + ")";
                 }

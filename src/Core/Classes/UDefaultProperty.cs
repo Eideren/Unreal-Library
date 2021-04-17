@@ -306,7 +306,7 @@ namespace UELib.Core
                         break;
 
                     case PropertyType.NameProperty:
-                        propertyValue = _Buffer.ReadName();
+                        propertyValue = "\"" + _Buffer.ReadName() + "\"";
                         break;
 
                     case PropertyType.IntProperty:
@@ -335,6 +335,17 @@ namespace UELib.Core
                             if( _Buffer.Version >= VEnumName )
                             {
                                 propertyValue = EnumName + "." + propertyValue;
+                            }
+                            else if (float.TryParse(propertyValue, out _) == false)
+                            {
+                                var property = FindProperty( out _Outer ) as UByteProperty;
+                                for (UStruct p = (UStruct)property.Outer; p != null; p = p.Super as UStruct)
+                                {
+                                    if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
+                                    {
+                                        propertyValue = o.GetFriendlyType() + "." + propertyValue;
+                                    }
+                                }
                             }
                         }
                         else
@@ -378,13 +389,17 @@ namespace UELib.Core
                                 if( !inline )
                                 {
                                     // =CLASS'Package.Group(s)+.Name'
-                                    propertyValue = String.Format( "{0}\'{1}\'", obj.GetClassName(), obj.GetOuterGroup() );
+                                    if(obj.GetClassName() == "Class")
+                                        propertyValue = $"new {obj.GetOuterGroup()}()";
+                                    else
+                                        propertyValue = $"LoadAsset<{obj.GetClassName()}>(\"{obj.GetOuterGroup()}\")";
+                                    propertyValue += String.Format( "/*Ref {0}\'{1}\'*/", obj.GetClassName(), obj.GetOuterGroup() );
                                 }
                             }
                             else
                             {
                                 // =none
-                                propertyValue = "none";
+                                propertyValue = "default";
                             }
                             break;
                         }
@@ -393,7 +408,7 @@ namespace UELib.Core
                         {
                             var obj = _Buffer.ReadObject();
                             _Container.Record( "object", obj );
-                            propertyValue = (obj != null ? "class\'" + obj.Name + "\'" : "none");
+                            propertyValue = (obj != null ? "Class<" + obj.Name + ">" : "default");
                             break;
                         }
 
@@ -641,7 +656,12 @@ namespace UELib.Core
                                     }
                                 }
                             }
-                            propertyValue = propertyValue.Length != 0 ? "(" + propertyValue + ")" : "none";
+
+                            var instanceName = (string)ItemName;
+                            if (string.IsNullOrEmpty(instanceName))
+                                instanceName = _Outer.GetFriendlyType();
+
+                            propertyValue = propertyValue.Length != 0 ? $"new {instanceName}{{{propertyValue}}}" : "default";
                             break;
                         }
 
@@ -651,7 +671,7 @@ namespace UELib.Core
                             _Container.Record( "arraySize", arraySize );
                             if( arraySize == 0 )
                             {
-                                propertyValue = "none";
+                                propertyValue = "default";
                                 break;
                             }
 
@@ -677,7 +697,7 @@ namespace UELib.Core
 
                             if( arrayType == PropertyType.None )
                             {
-                                propertyValue = "/* Array type was not detected. */";
+                                propertyValue = $"/* Array type({Name}) was not detected. */";
                                 break;
                             }
 
@@ -699,17 +719,29 @@ namespace UELib.Core
                             }
                             else
                             {
+                                var friendlyType = "";
+                                for (UStruct p = (UStruct)property.Outer; p != null; p = p.Super as UStruct)
+                                {
+                                    if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
+                                    {
+                                        friendlyType = o.GetFriendlyType();
+                                    }
+                                }
+                                if(friendlyType == "")
+                                    Debugger.Break();
+
+                                propertyValue += Name + $" = new {friendlyType}{{";
                                 for( int i = 0; i < arraySize; ++ i )
                                 {
                                     string elementValue = DeserializeDefaultPropertyValue( arrayType, ref deserializeFlags );
                                     if( (_TempFlags & ReplaceNameMarker) != 0 )
                                     {
-                                        propertyValue += elementValue.Replace( "%ARRAYNAME%", Name + "(" + i + ")" );
+                                        propertyValue += elementValue.Replace( "%ARRAYNAME%", Name + "[" + i + "]" );
                                         _TempFlags = 0x00;
                                     }
                                     else
                                     {
-                                        propertyValue += Name + "(" + i + ")=" + elementValue;
+                                        propertyValue += elementValue+", ";
                                     }
 
                                     if( i != arraySize - 1 )
@@ -717,6 +749,8 @@ namespace UELib.Core
                                         propertyValue += "\r\n" + UDecompilingState.Tabs;
                                     }
                                 }
+
+                                propertyValue += "}";
                             }
 
                             _TempFlags |= DoNotAppendName;
@@ -763,14 +797,14 @@ namespace UELib.Core
             if( (_TempFlags & DoNotAppendName) != 0 )
             {
                 // The tag handles the name etc on its own.
-                return value;
+                return value + ";";
             }
             string arrayindex = String.Empty;
             if( ArrayIndex > 0 && Type != PropertyType.BoolProperty )
             {
                 arrayindex += "[" + ArrayIndex + "]";
             }
-            return Name + arrayindex + "=" + value;
+            return Name + arrayindex + "=" + value + ";";
         }
         #endregion
 

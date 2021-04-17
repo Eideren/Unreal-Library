@@ -24,7 +24,7 @@ namespace UELib.Core
 
         protected override string FormatHeader()
         {
-            return "enum " + Name + DecompileMeta();
+            return "public struct /*enum*/ " + Name + DecompileMeta();
         }
 
         private string FormatNames()
@@ -34,12 +34,19 @@ namespace UELib.Core
             for( int index = 0; index < Names.Count; index++ )
             {
                 var enumName = Names[index];
-                output += "\r\n" + UDecompilingState.Tabs + enumName;
-                if( index != Names.Count - 1 )
-                {
-                    output += ",";
-                }
+                output += "\r\n" + UDecompilingState.Tabs + $"public static {Name} {enumName} => {index};";
             }
+
+            output += "\r\n" + UDecompilingState.Tabs + $"private static readonly string[] IndexToValue = {{ \"{string.Join("\", \"", Names)}\" }};";
+
+            output += "\r\n";
+            output += "\r\n" + UDecompilingState.Tabs + $"public int Value;";
+            output += "\r\n" + UDecompilingState.Tabs + $"public {Name}(int v) => Value = v;";
+            output += "\r\n" + UDecompilingState.Tabs + $"public static implicit operator int({Name} v) => v.Value;";
+            output += "\r\n" + UDecompilingState.Tabs + $"public static implicit operator {Name}(int v) => new {Name}(v);";
+            output += "\r\n" + UDecompilingState.Tabs + $"public static implicit operator {Name}(byte v) => new {Name}(v);";
+            output += "\r\n" + UDecompilingState.Tabs + $"public static explicit operator string({Name} v) => IndexToValue[v.Value];";
+            
             UDecompilingState.RemoveTabs( 1 );
             return output;
         }

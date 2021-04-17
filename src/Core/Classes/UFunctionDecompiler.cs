@@ -34,6 +34,7 @@ namespace UELib.Core
         private string FormatFlags()
         {
             string output = String.Empty;
+            string importantOutput = String.Empty;
             bool isNormalFunction = true;
 
             if( HasFunctionFlag( Flags.FunctionFlags.Private ) )
@@ -79,7 +80,7 @@ namespace UELib.Core
 
             if( HasFunctionFlag( Flags.FunctionFlags.Static ) )
             {
-                output += "static ";
+                importantOutput += "static ";
             }
 
             if( HasFunctionFlag( Flags.FunctionFlags.Final ) )
@@ -174,7 +175,7 @@ namespace UELib.Core
             {
                 output += "function ";
             }
-            return output;
+            return "/*"+output+"*/"+importantOutput;
         }
 
         protected override string FormatHeader()
@@ -193,8 +194,33 @@ namespace UELib.Core
 
             var metaData = DecompileMeta();
             if( metaData != String.Empty )
-            {
                 output = metaData + "\r\n" + output;
+
+            var super = (Super != null ? "override " : "virtual ");
+            if (HasFunctionFlag(Flags.FunctionFlags.Static))
+                super = "";
+
+            var returnType = "void";
+            if (ReturnProperty != null)
+                returnType = ReturnProperty.GetFriendlyType();
+            else if (HasFunctionFlag(Flags.FunctionFlags.Iterator))
+            {
+                returnType = "";
+                var ps = 
+                    from p in Params
+                    where (p.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0
+                    select p;
+                int count = 0;
+                foreach (var property in ps)
+                {
+                    returnType += $"{property.GetFriendlyType()}/* {property.Name}*/,";
+                    count++;
+                }
+
+                returnType = returnType.Substring(0, returnType.Length - 1);
+                if(count > 1)
+                    returnType = $"({returnType})";
+                returnType = $"System.Collections.Generic.IEnumerable<{returnType}>";
             }
 
             output += FormatFlags()
@@ -211,16 +237,24 @@ namespace UELib.Core
 
         private string FormatParms()
         {
-            string output = "(";
-            if( Params != null && Params.Any() )
+            string output = "";
+            if( Params != null )
             {
-                var parameters = Params.Where( (p) => p != ReturnProperty );
-                foreach( var parm in parameters )
+                bool isIterator = HasFunctionFlag(Flags.FunctionFlags.Iterator);
+                foreach( var parm in Params )
                 {
-                    output += parm.Decompile() + (parm != parameters.Last() ? ", " : String.Empty);
+                    if (parm == ReturnProperty)
+                        continue;
+                    if (isIterator && (parm.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
+                        continue; // Is the iterator's return params
+                        
+                    output += parm.Decompile() + ", ";
                 }
+
+                if (output != "")
+                    output = output.Substring(0, output.Length - 2);
             }
-            return output + ")";
+            return $"({output})";
         }
 
         private string FormatCode()
@@ -243,6 +277,23 @@ namespace UELib.Core
             finally
             {
                 UDecompilingState.RemoveTabs( 1 );
+            }
+
+            if (HasFunctionFlag(Flags.FunctionFlags.Native))
+            {
+                code += "\r\n\t" + UDecompilingState.Tabs + "#warning NATIVE FUNCTION !";
+                if (HasFunctionFlag(Flags.FunctionFlags.Iterator) == false)
+                {
+                    foreach (UProperty param in Params)
+                    {
+                        if ((param.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 && param != ReturnProperty)
+                            code += $"\r\n\t{UDecompilingState.Tabs}{param.Name} = default;";
+                    }
+                }
+                if (HasFunctionFlag(Flags.FunctionFlags.Iterator))
+                    code += "\r\n\t" + UDecompilingState.Tabs + "yield return default;";
+                if (ReturnProperty != null)
+                    code += "\r\n\t" + UDecompilingState.Tabs + "return default;";
             }
 
             // Empty function!

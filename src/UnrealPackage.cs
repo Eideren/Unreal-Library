@@ -1258,7 +1258,7 @@ namespace UELib
             {
                 DeserializeObjects();
             }
-            catch
+            catch(Exception e)
             {
                 throw new DeserializingObjectsException();
             }
@@ -1471,20 +1471,21 @@ namespace UELib
         #region Methods
         private void CreateObject( UObjectTableItem table )
         {
-            var classType = GetClassType( table.ClassName );
-            table.Object = classType == null 
-                ? new UnknownObject() 
-                : (UObject)Activator.CreateInstance( classType );
-            AddObject( table.Object, table );
+            if (table.Object == null)
+            {
+                var classType = GetClassType( table.ClassName );
+                table.Object = classType == null
+                    ? new UnknownObject()
+                    : (UObject) Activator.CreateInstance(classType);
+                table.Object.Package = this;
+                table.Object.Table = table;
+            }
+            AddObject( table.Object );
             OnNotifyPackageEvent( new PackageEventArgs( PackageEventArgs.Id.Object ) );
         }
 
-        private void AddObject( UObject obj, UObjectTableItem table )
+        private void AddObject( UObject obj )
         {
-            table.Object = obj;
-            obj.Package = this;
-            obj.Table = table;
-
             Objects.Add( obj );
             if( NotifyObjectAdded != null )
             {

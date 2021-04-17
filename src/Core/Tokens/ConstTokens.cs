@@ -43,7 +43,7 @@ namespace UELib.Core
             {
                 public override string Decompile()
                 {
-                     return "none";
+                     return "default";
                 }
             }
 
@@ -51,7 +51,7 @@ namespace UELib.Core
             {
                 public override string Decompile()
                 {
-                     return "self";
+                     return "this";
                 }
             }
 
@@ -178,11 +178,11 @@ namespace UELib.Core
                         string Class = obj.GetClassName();
                         if( String.IsNullOrEmpty( Class ) )
                         {
-                            Class = "class";
+                            Class = "Class";
                         }
-                        return Class.ToLower() + "'" + obj.Name + "'";
+                        return Class + "<" + obj.Name + ">()";
                     }
-                    return "none";
+                    return "default";
                 }
             }
 
@@ -198,7 +198,7 @@ namespace UELib.Core
 
                 public override string Decompile()
                 {
-                    return "\'" + Decompiler._Container.Package.GetIndexName( NameIndex ) + "\'";
+                    return "\"" + Decompiler._Container.Package.GetIndexName( NameIndex ) + "\"";
                 }
             }
 

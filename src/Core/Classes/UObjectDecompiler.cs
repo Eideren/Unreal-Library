@@ -14,17 +14,17 @@ namespace UELib.Core
                 BeginDeserializing();
             }
 
-            string output = String.Format( "begin object name={0} class={1}\r\n", Name, Class.Name );
+            string output = $"var {Name} = new {Class.Name}(){{\r\n";
             UDecompilingState.AddTabs( 1 );
             try
             {
-                output += DecompileProperties();
+                output += DecompileProperties().Replace(';', ',');
             }
             finally
             {
                 UDecompilingState.RemoveTabs( 1 );
             }
-            return output + String.Format( "{0}object end\r\n{0}// Reference: {1}'{2}'", UDecompilingState.Tabs, Class.Name, GetOuterGroup() );
+            return output + String.Format( "{0}}};\r\n{0}// Reference: {1}'{2}'", UDecompilingState.Tabs, Class.Name, GetOuterGroup() );
         }
 
         // Ment to be overriden!

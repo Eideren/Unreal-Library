@@ -40,11 +40,11 @@ namespace UELib.Core
 
         public override string GetFriendlyInnerType()
         {
-            return InnerProperty != null
-                ? (InnerProperty.IsClassType( "ClassProperty" ) || InnerProperty.IsClassType( "DelegateProperty" ))
-                    ? (" " + InnerProperty.FormatFlags() + InnerProperty.GetFriendlyType() + " ")
-                    : (InnerProperty.FormatFlags() + InnerProperty.GetFriendlyType())
-                : "@NULL";
+            if (InnerProperty == null)
+                return "@NULL";
+            if (InnerProperty.IsClassType("ClassProperty") || InnerProperty.IsClassType("DelegateProperty"))
+                return " " + InnerProperty.FormatFlags() + InnerProperty.GetFriendlyType() + " ";
+            return InnerProperty.FormatFlags() + InnerProperty.GetFriendlyType();
         }
     }
 }

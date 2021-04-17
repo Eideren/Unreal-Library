@@ -54,7 +54,7 @@ namespace UELib.Core
         #endregion
 
         #region Script Members
-        public List<UProperty>  Params{ get; private set; }
+        public List<UProperty>  Params{ get; private set; } = new List<UProperty>();
         public UProperty        ReturnProperty{ get; private set; }
         #endregion
 
@@ -118,7 +118,6 @@ namespace UELib.Core
         protected override void FindChildren()
         {
             base.FindChildren();
-            Params = new List<UProperty>();
             foreach( var property in Variables )
             {
                 if( property.HasPropertyFlag( PropertyFlagsLO.ReturnParm ) )

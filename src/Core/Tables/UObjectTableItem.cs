@@ -39,7 +39,7 @@ namespace UELib
         /// </summary>
         public int ClassIndex{ get; protected set; }
         [Pure]public UObjectTableItem ClassTable{ get{ return Owner.GetIndexTable( ClassIndex ); } }
-        [Pure]public virtual string ClassName{ get{ return ClassIndex != 0 ? Owner.GetIndexTable( ClassIndex ).ObjectName : "class"; } }
+        [Pure]public virtual string ClassName{ get{ return ClassIndex != 0 ? Owner.GetIndexTable( ClassIndex ).ObjectName : "Class"; } }
 
         /// <summary>
         /// Object index to the outer of this object

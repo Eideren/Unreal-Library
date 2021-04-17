@@ -47,6 +47,13 @@ namespace UELib.Core
             {
                 public override string Decompile()
                 {
+                    for (var o = Object.Outer; o != null; o = o.Outer)
+                    {
+                        if (o is UClass)
+                        {
+                            return $"new {o.Package.PackageName}.{o.Name}()." + base.Decompile();
+                        }
+                    }
                     return "default." + base.Decompile();
                 }
             }

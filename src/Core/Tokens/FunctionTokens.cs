@@ -75,11 +75,20 @@ namespace UELib.Core
 
                 protected string DecompileOperator( string operatorName )
                 {
-                    string output = String.Format( "{0} {1} {2}",
-                        PrecedenceToken( GrabNextToken() ),
-                        operatorName,
-                        PrecedenceToken( GrabNextToken() )
-                    );
+                    string output;
+                    if (operatorName == "Dot" || operatorName == "Cross")
+                    {
+                        output = $"{operatorName}({PrecedenceToken( GrabNextToken() )}, {PrecedenceToken( GrabNextToken() )})";
+                    }
+                    else
+                    {
+                        output = String.Format( "{0} {1} {2}",
+                            PrecedenceToken( GrabNextToken() ),
+                            operatorName,
+                            PrecedenceToken( GrabNextToken() )
+                        );
+                    }
+
                     DecompileNext(); // )
                     return output;
                 }
@@ -137,6 +146,8 @@ namespace UELib.Core
                             {
                                 output.Append( v == String.Empty ? "," : ", " );
                             }
+                            if( t is OutVariableToken )
+                                output.Append( "ref " );
                             output.Append( v );
                         }
                     }
@@ -184,7 +195,7 @@ namespace UELib.Core
                             // Calling Super??.
                             if( Function.Name == Decompiler._Container.Name && !Decompiler._IsWithinClassContext )
                             {
-                                output = "super";
+                                output = "base";
 
                                 // Check if the super call is within the super class of this functions outer(class)
                                 var myouter = (UField)Decompiler._Container.Outer;
@@ -200,7 +211,8 @@ namespace UELib.Core
                                         // Different owners, then it is a deep super call.
                                         if( Function.GetOuterName() != Decompiler._Container.GetOuterName() )
                                         {
-                                            output += "(" + Function.GetOuterName() + ")";
+                                            if(Decompiler._Container.Super.GetOuterName() != Function.GetOuterName())
+                                                output += "(" + Function.GetOuterName() + ")"; // C# doesn't handle calling an indirect base function 
                                         }
                                     }
                                 }

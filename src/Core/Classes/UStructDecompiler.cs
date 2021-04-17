@@ -49,8 +49,11 @@ namespace UELib.Core
 
         protected override string FormatHeader()
         {
-            var output = "struct " + FormatFlags() + Name + (Super != null ? " " + FormatExtends() + " "
-                + Super.Name : String.Empty);
+            var flags = FormatFlags();
+            if (string.IsNullOrWhiteSpace(flags) == false)
+                flags = $"/*{flags}*/";
+            var output = "public struct " + flags + Name + (Super != null ? " " + FormatExtends() + " "
+                                                                     + Super.Name : String.Empty);
             var metaData = DecompileMeta();
             if( metaData != String.Empty )
             {
@@ -222,7 +225,7 @@ namespace UELib.Core
                 try
                 {
                     // Fix for properties within structs
-                    output += "\r\n" + property.PreDecompile() + UDecompilingState.Tabs + "var";
+                    output += "\r\n" + property.PreDecompile() + UDecompilingState.Tabs + "public";
                     try
                     {
                         if( property.CategoryIndex > -1
@@ -231,11 +234,11 @@ namespace UELib.Core
                         {
                             if( property.CategoryName != Name )
                             {
-                                output += "(" + property.CategoryName + ")";
+                                output += "/*(" + property.CategoryName + ")*/";
                             }
                             else
                             {
-                                output += "()";
+                                output += "/*()*/";
                             }
                         }
                     }
@@ -273,7 +276,7 @@ namespace UELib.Core
 
             if( IsClassType( "Class" ) )
             {
-                output += "\r\ndefaultproperties\r\n{\r\n";
+                output += $"\r\npublic {Name}()\r\n{{\r\n";
             }
             else
             {
@@ -298,7 +301,10 @@ namespace UELib.Core
             {
                 UDecompilingState.RemoveTabs( 1 );
             }
-            return output + innerOutput + UDecompilingState.Tabs + "}";
+            if( IsClassType( "Class" ) )
+                return output + innerOutput + UDecompilingState.Tabs + "}";
+            else
+                return "/*" + output + innerOutput + UDecompilingState.Tabs + "}" + "*/";
         }
 
         protected string FormatLocals()
@@ -323,21 +329,21 @@ namespace UELib.Core
                     (
                         curType == nextType
                         ? ((numParms >= 5 && numParms % 5 == 0)
-                            ? ",\r\n\t" + UDecompilingState.Tabs
-                            : ", "
+                            ? " = default,\r\n\t" + UDecompilingState.Tabs
+                            : " = default, "
                           )
-                        : ";\r\n"
+                        : " = default;\r\n"
                     );
                     ++ numParms;
                 }
                 else
                 {
                     output += (numParms >= 5 ? "\r\n" : String.Empty)
-                        + UDecompilingState.Tabs + "local " + Locals[i].Decompile() +
+                        + UDecompilingState.Tabs + "/*local */" + Locals[i].Decompile() +
                     (
                         (nextType != curType || String.IsNullOrEmpty( nextType ) )
-                        ? ";\r\n"
-                        : ", "
+                        ? " = default;\r\n"
+                        : " = default, "
                     );
                     numParms = 1;
                 }
