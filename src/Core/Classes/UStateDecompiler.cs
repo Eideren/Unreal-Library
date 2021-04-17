@@ -63,6 +63,9 @@ namespace UELib.Core
             {
                 output += " " + FormatExtends() + " " + Super.Name;
             }
+
+            output = $"protected virtual System.Collections.Generic.IEnumerable<Flow> {Name}(string jumpTo = null)/*{output}*/";
+            
             return output;
         }
 
@@ -73,7 +76,7 @@ namespace UELib.Core
                 return String.Empty;
             }
 
-            string output = "\r\n" + UDecompilingState.Tabs + "ignores ";
+            string output = "\r\n" + UDecompilingState.Tabs + "/*ignores*/";
             var ignores = new List<string>();
             foreach( var func in Functions.Where( func => !func.HasFunctionFlag( Flags.FunctionFlags.Defined ) ) )
             {
@@ -82,18 +85,7 @@ namespace UELib.Core
 
             for( int i = 0; i < ignores.Count; ++ i )
             {
-                const int ignoresPerRow = 5;
-                output += ignores[i] +
-                (
-                    ignores[i] != ignores.Last()
-                    ? ", " +
-                    (
-                        i % ignoresPerRow == 0 && i >= ignoresPerRow
-                        ? "\r\n\t" + UDecompilingState.Tabs
-                        : String.Empty
-                    )
-                    : ";\r\n"
-                );
+                output += $"{ignores[i]} = () => {{}};";
             }
             return ignores.Count > 0 ? output : String.Empty;
         }

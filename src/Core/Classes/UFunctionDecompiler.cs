@@ -223,11 +223,17 @@ namespace UELib.Core
                 returnType = $"System.Collections.Generic.IEnumerable<{returnType}>";
             }
 
-            output += FormatFlags()
-                + (ReturnProperty != null
-                    ? ReturnProperty.GetFriendlyType() + " "
-                    : String.Empty)
-                + FriendlyName + FormatParms();
+            if (Outer.GetType() == typeof(UState))
+            {
+                output += FriendlyName + " = () => ";
+            }
+            else
+            {
+                output += "public " + super + FormatFlags()
+                          + returnType
+                          + " "
+                          + FriendlyName + FormatParms();
+            }
             if( HasFunctionFlag( Flags.FunctionFlags.Const ) )
             {
                 output += " const";
@@ -305,7 +311,7 @@ namespace UELib.Core
             return UnrealConfig.PrintBeginBracket() + "\r\n" +
                 locals +
                 code +
-                UnrealConfig.PrintEndBracket();
+                UnrealConfig.PrintEndBracket() + (Outer.GetType() == typeof(UState) ? ";" : "");
         }
     }
 }
