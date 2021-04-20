@@ -30,7 +30,7 @@ namespace UELib.Core
             {
                 public override string Decompile()
                 {
-                    return ", default";
+                    return "default";
                 }
             }
             public class EndOfScriptToken : Token{}

@@ -76,6 +76,11 @@ namespace UELib.Core
                 protected string DecompileOperator( string operatorName )
                 {
                     string output;
+                    if (operatorName == "$")
+                        operatorName = "+"; // string concat
+                    if (operatorName == "@")
+                        operatorName = "+ \" \" +"; // spaced string concat
+                    
                     if (operatorName == "Dot" || operatorName == "Cross")
                     {
                         output = $"{operatorName}({PrecedenceToken( GrabNextToken() )}, {PrecedenceToken( GrabNextToken() )})";
@@ -111,32 +116,50 @@ namespace UELib.Core
                         // A1233343.DrawText(Class'BTClient_Interaction'.static.A1233332(static.Max(0, A1233328 - A1233322[A1233222].StartTime)), true);
                         Decompiler._IsWithinClassContext = false;
                     }
-                    string output = functionName + "(" + DecompileParms();
+                    string output = functionName + "(" + DecompileParms(functionName);
                     return output;
                 }
 
-                private string DecompileParms()
+                private string DecompileParms(string functionName)
                 {
-                    var tokens = new List<Tuple<Token, String>>();
+                    var tokens = new List<(Token token, String output, UProperty prop)>();
                     {
                     next:
                         var t = GrabNextToken();
-                        tokens.Add( Tuple.Create( t, t.Decompile() ) );
+                        tokens.Add( ( t, t.Decompile(), null ) );
                         if( !(t is EndFunctionParmsToken) )
                             goto next;
+                    }
+                    
+                    // Try to find matching function in the hierarchy to fix ref stuff
+                    var outer = ((Decompiler._Container as UFunction)?.Outer as UState) ?? (Decompiler._Container as UState);
+                    foreach (var function in outer.InheritedFunctions())
+                    {
+                        if (function.Name != functionName)
+                            continue;
+                            
+                        var paramCount = function.Params.Count - (function.ReturnProperty == null ? 0 : 1);
+                        if (paramCount != (tokens.Count - 1/* - EndFunction*/))
+                            continue;
+
+                        int index = 0;
+                        foreach (var param in function.Params)
+                        {
+                            if (param == function.ReturnProperty)
+                                continue;
+                            var p = tokens[index];
+                            tokens[index] = (p.token, p.output, param);
+                            index++;
+                        }
+                        break;
                     }
 
                     var output = new StringBuilder();
                     for( int i = 0; i < tokens.Count; ++ i )
                     {
-                        var t = tokens[i].Item1; // Token
-                        var v = tokens[i].Item2; // Value
+                        var (t, v, p) = tokens[i];
 
-                        if( t is NoParmToken ) // Skipped optional parameters
-                        {
-                            output.Append( v );
-                        }
-                        else if( t is EndFunctionParmsToken ) // End ")"
+                        if( t is EndFunctionParmsToken ) // End ")"
                         {
                             output = new StringBuilder( output.ToString().TrimEnd( ',' ) + v );
                         }
@@ -148,6 +171,8 @@ namespace UELib.Core
                             }
                             if( t is OutVariableToken )
                                 output.Append( "ref " );
+                            else if(  (p != null && (p.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0) )
+                                output.Append( "ref/*probably?*/ " );
                             output.Append( v );
                         }
                     }
@@ -180,15 +205,15 @@ namespace UELib.Core
                         // Support for non native operators.
                         if( Function.IsPost() )
                         {
-                            output = DecompilePreOperator( Function.FriendlyName );
+                            output = DecompilePreOperator( Function.Name );
                         }
                         else if( Function.IsPre() )
                         {
-                            output = DecompilePostOperator( Function.FriendlyName );
+                            output = DecompilePostOperator( Function.Name );
                         }
                         else if( Function.IsOperator() )
                         {
-                            output = DecompileOperator( Function.FriendlyName );
+                            output = DecompileOperator( Function.Name );
                         }
                         else
                         {
@@ -217,7 +242,14 @@ namespace UELib.Core
                                     }
                                 }
                                 output += ".";
+                                if (Function.Outer.GetType() == typeof(UState) || Function.OverridenByState)
+                                {
+                                    output = "/*Call to base transformed into specific call because of state overriding that function */" + Function.NameOfSpecificFunctionImplementation;
+                                    output = output.Remove(output.Length - Function.Name.Length);
+                                }
                             }
+                            if (Function.HasFunctionFlag(Flags.FunctionFlags.Latent))
+                                output += "yield return ";
                             output += DecompileCall( Function.Name );
                         }
                     }
@@ -272,7 +304,7 @@ namespace UELib.Core
                 public override string Decompile()
                 {
                     Decompiler._CanAddSemicolon = true;
-                    return "global." + DecompileCall( Package.GetIndexName( FunctionNameIndex ) );
+                    return "global_" + DecompileCall( Package.GetIndexName( FunctionNameIndex ) );
                 }
             }
 
@@ -346,13 +378,38 @@ namespace UELib.Core
 
                 public override string Decompile()
                 {
+                    // Try to find inherited function
+                    UFunction foundFunc = null;
+                    for (var container = Decompiler._Container as UState; container != null && foundFunc == null; container = container.Super as UState)
+                    {
+                        foreach (UFunction function in container.Functions)
+                        {
+                            if (function.Name != NativeTable.Name)
+                                continue;
+                                            
+                            foundFunc = function;
+                            break;
+                        }
+
+                        if (foundFunc != null || container.GetType() != typeof(UState))
+                            continue;
+                                
+                        for (var Class = container.Outer as UClass; Class != null && foundFunc == null; Class = Class.Super as UClass)
+                        {
+                            foreach (UFunction function in Class.Functions)
+                            {
+                                if (function.Name != NativeTable.Name)
+                                    continue;
+                                        
+                                foundFunc = function;
+                                break;
+                            }
+                        }
+                    }
+                    
                     string output;
                     switch( NativeTable.Type )
                     {
-                        case FunctionType.Function:
-                            output = DecompileCall( NativeTable.Name );
-                            break;
-
                         case FunctionType.Operator:
                             output = DecompileOperator( NativeTable.Name );
                             break;
@@ -365,10 +422,15 @@ namespace UELib.Core
                             output = DecompilePreOperator( NativeTable.Name );
                             break;
 
+                        case FunctionType.Function:
                         default:
                             output = DecompileCall( NativeTable.Name );
                             break;
                     }
+                    
+                    if (foundFunc?.HasFunctionFlag(Flags.FunctionFlags.Latent) == true)
+                        output = "yield return " + output;
+                    
                     Decompiler._CanAddSemicolon = true;
                     return output;
                 }

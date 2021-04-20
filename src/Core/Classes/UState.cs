@@ -41,7 +41,7 @@ namespace UELib.Core
         #endregion
 
         #region Script Members
-        public IList<UFunction> Functions{ get; private set; }
+        public IList<UFunction> Functions { get; private set; } = new List<UFunction>();
         #endregion
 
         #region Constructors
@@ -164,6 +164,24 @@ namespace UELib.Core
         {
             return (_StateFlags & flag) != 0;
         }
+
+        public IEnumerable<UFunction> InheritedFunctions()
+        {
+            // Search in all inherited functions
+            for (var o = this; o != null; o = o.Super as UState)
+                foreach (var function in o.Functions)
+                    yield return function;
+                        
+            if (GetType() == typeof(UState))
+            {
+                // If this functions lays in a state, we just checked all those directly inherited only from states
+                // let's check for the class containing this state now
+                for (var o = Outer as UState; o != null; o = o.Super as UState)
+                    foreach (var function in o.Functions)
+                        yield return function;
+            }
+        }
+
         #endregion
     }
 }

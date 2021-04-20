@@ -262,7 +262,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -270,7 +270,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -278,7 +278,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -286,7 +286,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -294,7 +294,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -302,7 +302,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -310,7 +310,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -326,7 +326,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -334,7 +334,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
 
@@ -353,7 +353,7 @@
             {
                 public override string Decompile()
                 {
-                    return "(" + "(string)" + base.Decompile() + ")";
+                    return "(" + base.Decompile() + ").ToString()";
                 }
             }
         }

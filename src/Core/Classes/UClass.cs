@@ -95,7 +95,8 @@ namespace UELib.Core
         #endregion
 
         #region Script Members
-        public IList<UState> States{ get; protected set; }
+
+        public IList<UState> States { get; protected set; } = new List<UState>();
         #endregion
 
         #region Constructors

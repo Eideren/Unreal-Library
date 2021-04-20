@@ -627,7 +627,7 @@ namespace UELib.Core
                 public override string Decompile()
                 {
                     Decompiler._CanAddSemicolon = true;
-                    return "stop";
+                    return "yield return Flow.Stop";
                 }
             }
         }

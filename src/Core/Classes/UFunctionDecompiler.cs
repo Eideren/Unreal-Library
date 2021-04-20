@@ -6,6 +6,8 @@ namespace UELib.Core
 {
     public partial class UFunction
     {
+        public bool OverridenByState = false;
+        
         /// <summary>
         /// Decompiles this object into a text format of:
         ///
@@ -28,8 +30,34 @@ namespace UELib.Core
             {
                 code = e.Message;
             }
-            return FormatHeader() + (String.IsNullOrEmpty( code ) ? ";" : code);
+            return FormatHeader() + (String.IsNullOrEmpty( code ) ? "{}" : code);
         }
+
+        public string NameOfSpecificFunctionImplementation
+        {
+            get
+            {
+                if (Outer.GetType() == typeof(UState))
+                    return AsFullyQualifiedStateName;
+                if (OverridenByState)
+                    return AsFullyQualifiedStateName;
+                return Name;
+            }
+        }
+
+        public string AsFullyQualifiedStateName 
+        {
+            get
+            {
+                if(Outer?.Outer != null)
+                    return $"{Outer.Outer.Name}_{Outer.Name}_{Name}";
+                else if(Outer != null)
+                    return $"{Outer.Name}_{Name}";
+                return Name;
+            }
+        }
+        
+        public bool IsStateFunction => Outer.GetType() == typeof(UState);
 
         private string FormatFlags()
         {
@@ -196,10 +224,46 @@ namespace UELib.Core
             if( metaData != String.Empty )
                 output = metaData + "\r\n" + output;
 
-            var super = (Super != null ? "override " : "virtual ");
-            if (HasFunctionFlag(Flags.FunctionFlags.Static))
-                super = "";
+            var overridingType = (Super != null ? "override" : "virtual");
+            if (IsStateFunction || HasFunctionFlag(Flags.FunctionFlags.Static))
+                overridingType = "";
 
+            var returnType = ReturnType();
+
+            var overridenByState = false;
+            for (var s = this; s != null; s = s.Super as UFunction)
+            {
+                if (s.OverridenByState)
+                {
+                    overridenByState = true;
+                    break;
+                }
+            }
+
+            if(overridenByState && Outer.GetType() != typeof(UState) /*Ignore for in-state defined functions*/)
+            {
+                if(Super == null)
+                    output += $"public delegate {returnType} {Name}_del({FormatParms()});\r\n";
+                
+                output += $"public {overridingType} {Name}_del {Name} {{ get => bfield_{Name} ?? {NameOfSpecificFunctionImplementation}; set => bfield_{FriendlyName} = value; }} {FriendlyName}_del bfield_{FriendlyName};\r\n";
+                output += $"public {overridingType} {Name}_del global_{Name} => {NameOfSpecificFunctionImplementation};\r\n";
+                overridingType = "";
+            }
+            output += $"{(Outer.GetType() == typeof(UState) ? "protected" : "public" )} {overridingType} {FormatFlags()}{returnType} {NameOfSpecificFunctionImplementation}({FormatParms()})";
+
+            if( HasFunctionFlag( Flags.FunctionFlags.Const ) )
+            {
+                output += " const";
+            }
+
+            if (IsStateFunction)
+                output += "// state function";
+            
+            return output;
+        }
+
+        public string ReturnType()
+        {
             var returnType = "void";
             if (ReturnProperty != null)
                 returnType = ReturnProperty.GetFriendlyType();
@@ -222,26 +286,15 @@ namespace UELib.Core
                     returnType = $"({returnType})";
                 returnType = $"System.Collections.Generic.IEnumerable<{returnType}>";
             }
+            else if (HasFunctionFlag(Flags.FunctionFlags.Latent))
+            {
+                returnType = "Flow";
+            }
 
-            if (Outer.GetType() == typeof(UState))
-            {
-                output += FriendlyName + " = () => ";
-            }
-            else
-            {
-                output += "public " + super + FormatFlags()
-                          + returnType
-                          + " "
-                          + FriendlyName + FormatParms();
-            }
-            if( HasFunctionFlag( Flags.FunctionFlags.Const ) )
-            {
-                output += " const";
-            }
-            return output;
+            return returnType;
         }
 
-        private string FormatParms()
+        public string FormatParms()
         {
             string output = "";
             if( Params != null )
@@ -260,7 +313,7 @@ namespace UELib.Core
                 if (output != "")
                     output = output.Substring(0, output.Length - 2);
             }
-            return $"({output})";
+            return $"{output}";
         }
 
         private string FormatCode()
@@ -287,7 +340,7 @@ namespace UELib.Core
 
             if (HasFunctionFlag(Flags.FunctionFlags.Native))
             {
-                code += "\r\n\t" + UDecompilingState.Tabs + "#warning NATIVE FUNCTION !";
+                code += UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
                 if (HasFunctionFlag(Flags.FunctionFlags.Iterator) == false)
                 {
                     foreach (UProperty param in Params)
@@ -311,7 +364,7 @@ namespace UELib.Core
             return UnrealConfig.PrintBeginBracket() + "\r\n" +
                 locals +
                 code +
-                UnrealConfig.PrintEndBracket() + (Outer.GetType() == typeof(UState) ? ";" : "");
+                UnrealConfig.PrintEndBracket();
         }
     }
 }

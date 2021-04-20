@@ -74,7 +74,7 @@ namespace UELib.Core
                 FormatStructs() +
                 FormatProperties() +
                 FormatReplication() +
-                FormatFunctions() +
+                FormatFunctionsOuter() +
                 FormatStates() +
                 FormatDefaultProperties()+"\n}";
 
@@ -535,6 +535,29 @@ namespace UELib.Core
             {
                 output += "\r\n" + scriptState.Decompile() + "\r\n";
             }
+
+            if (GetType() != typeof(UState) && States?.Count > 0)
+            {
+                // add/override FindState function to include this class' states with it
+
+                output += $"{UDecompilingState.Tabs}protected override (System.Action<name>, StateFlow, System.Action<name>) FindState(name stateName)\r\n{{\r\n";
+                
+                UDecompilingState.AddTab();
+                output += $"{UDecompilingState.Tabs}switch(stateName)\r\n";
+                output += $"{UDecompilingState.Tabs}{{\r\n";
+                
+                UDecompilingState.AddTab();
+                foreach (var state in States)
+                    output += $"{UDecompilingState.Tabs}case \"{state.Name}\": return {state.Name}();\r\n";
+                output += $"{UDecompilingState.Tabs}default: return base.FindState(stateName);\r\n";
+                UDecompilingState.RemoveTab();
+                
+                output += $"{UDecompilingState.Tabs}}}\r\n";
+                UDecompilingState.RemoveTab();
+                
+                output += $"{UDecompilingState.Tabs}}}";
+            }
+            
             return output;
         }
     }

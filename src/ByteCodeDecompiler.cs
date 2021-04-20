@@ -1562,8 +1562,8 @@ namespace UELib.Core
                     var isStateLabel = !label.Name.StartsWith( "J0x", StringComparison.Ordinal );
 
                     output += isStateLabel
-                        ? String.Format( "\r\n{0}:\r\n", label.Name )
-                        : String.Format( "\r\n{0}:", UDecompilingState.Tabs + label.Name );
+                        ? String.Format( "\r\n{0}:{{}}\r\n", label.Name )
+                        : String.Format( "\r\n{0}:{{}}", UDecompilingState.Tabs + label.Name );
                     _TempLabels.RemoveAt( i );
                     -- i;
                 }
