@@ -332,14 +332,18 @@ namespace UELib.Core
                         {
                             var enumValue = _Buffer.ReadName();
                             propertyValue = enumValue;
-                            if( _Buffer.Version >= VEnumName )
+                            if (propertyValue == "None")
+                            {
+                                propertyValue = "default";
+                            }
+                            else if( _Buffer.Version >= VEnumName )
                             {
                                 propertyValue = EnumName + "." + propertyValue;
                             }
                             else if (float.TryParse(propertyValue, out _) == false)
                             {
                                 var property = FindProperty( out _Outer ) as UByteProperty;
-                                for (UStruct p = (UStruct)property.Outer; p != null; p = p.Super as UStruct)
+                                for (UStruct p = property?.Outer as UStruct; p != null; p = p.Super as UStruct)
                                 {
                                     if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
                                     {
@@ -371,17 +375,17 @@ namespace UELib.Core
                                     if( obj.Properties != null && obj.Properties.Count > 0 )
                                     {
                                         inline = true;
-                                        propertyValue = obj.Decompile() + "\r\n" + UDecompilingState.Tabs;
+                                        propertyValue = obj.Decompile();
 
                                         _TempFlags |= DoNotAppendName;
                                         if( (deserializeFlags & DeserializeFlags.WithinArray) != 0 )
                                         {
                                             _TempFlags |= ReplaceNameMarker;
-                                            propertyValue += "%ARRAYNAME%=" + obj.Name;
+                                            propertyValue = "%ARRAYNAME%=" + propertyValue;
                                         }
                                         else
                                         {
-                                            propertyValue += Name + "=" + obj.Name;
+                                            propertyValue = Name + "=" + propertyValue;
                                         }
                                     }
                                 }
@@ -390,7 +394,7 @@ namespace UELib.Core
                                 {
                                     // =CLASS'Package.Group(s)+.Name'
                                     if(obj.GetClassName() == "Class")
-                                        propertyValue = $"new {obj.GetOuterGroup()}()";
+                                        propertyValue = $"ClassT<{obj.GetOuterGroup()}>()";
                                     else
                                         propertyValue = $"LoadAsset<{obj.GetClassName()}>(\"{obj.GetOuterGroup()}\")";
                                     propertyValue += String.Format( "/*Ref {0}\'{1}\'*/", obj.GetClassName(), obj.GetOuterGroup() );
@@ -408,7 +412,7 @@ namespace UELib.Core
                         {
                             var obj = _Buffer.ReadObject();
                             _Container.Record( "object", obj );
-                            propertyValue = (obj != null ? "Class<" + obj.Name + ">" : "default");
+                            propertyValue = (obj != null ? $"ClassT<{obj.Name}>()" : "default");
                             break;
                         }
 
@@ -627,7 +631,10 @@ namespace UELib.Core
                                     continue;
 
                                 isHardCoded = true;
-                                propertyValue += DeserializeDefaultPropertyValue( hardcodedStructs[i], ref deserializeFlags );
+                                var v = DeserializeDefaultPropertyValue( hardcodedStructs[i], ref deserializeFlags );
+                                using (UDecompilingState.TabScope())
+                                    v = $"\r\n{UDecompilingState.Tabs}" + v.Replace(",", $",\r\n{UDecompilingState.Tabs}");
+                                propertyValue += v;
                                 break;
                             }
 
@@ -636,32 +643,58 @@ namespace UELib.Core
                                 // We have to modify the outer so that dynamic arrays within this struct
                                 // will be able to find its variables to determine the array type.
                                 FindProperty( out _Outer );
-                                while( true )
+                                using (UDecompilingState.TabScope())
                                 {
-                                    var tag = new UDefaultProperty( _Container, _Outer );
-                                    if( tag.Deserialize() )
+                                    List<UDefaultProperty> tags = new List<UDefaultProperty>();
+                                    while( true )
                                     {
-                                        propertyValue += tag.Name +
-                                            (tag.ArrayIndex > 0 && tag.Type != PropertyType.BoolProperty
-                                            ? "[" + tag.ArrayIndex + "]" : String.Empty) +
-                                                "=" + tag.DeserializeValue( deserializeFlags ) + ",";
+                                        var tag = new UDefaultProperty( _Container, _Outer );
+                                        if( tag.Deserialize() )
+                                            tags.Add(tag);
+                                        else
+                                            break;
                                     }
-                                    else
+
+                                    foreach (var groupByName in from tag in tags group tag by tag.Name.Name into groupByName select groupByName )
                                     {
-                                        if( propertyValue.EndsWith( "," ) )
+                                        var target = _Outer.Variables.FirstOrDefault(x => x.Name == groupByName.Key);
+                                        
+                                        if (target?.IsArray == true)
                                         {
-                                            propertyValue = propertyValue.Remove( propertyValue.Length - 1, 1 );
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{target.Name}=\r\n{UDecompilingState.Tabs}{{";
+
+                                            int previousIndex = -1;
+                                            using (UDecompilingState.TabScope())
+                                            {
+                                                foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
+                                                {
+                                                    while (++previousIndex != tag.ArrayIndex)
+                                                        propertyValue += $"\r\n{UDecompilingState.Tabs}default,";
+                                                    propertyValue += $"\r\n{UDecompilingState.Tabs}{tag.DeserializeValue(deserializeFlags)},";
+                                                }
+                                            }
+                                    
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}}},";
                                         }
-                                        break;
+                                        else
+                                        {
+                                            foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
+                                            {
+                                                var arrayIndexIfAny = tag.ArrayIndex != 0 ? $"[{tag.ArrayIndex}]" : "";
+                                                propertyValue += $"\r\n{UDecompilingState.Tabs}{tag.Name}{arrayIndexIfAny}={tag.DeserializeValue(deserializeFlags)},";
+                                            }
+                                        }
                                     }
                                 }
                             }
 
                             var instanceName = (string)ItemName;
-                            if (string.IsNullOrEmpty(instanceName))
-                                instanceName = _Outer.GetFriendlyType();
+                            if (ItemName == _Outer?.Name)
+                                instanceName = _Outer?.GetFriendlyType();
+                            else if (string.IsNullOrEmpty(instanceName))
+                                instanceName = _Outer?.GetFriendlyType();
 
-                            propertyValue = propertyValue.Length != 0 ? $"new {instanceName}{{{propertyValue}}}" : "default";
+                            propertyValue = propertyValue.Length != 0 ? $"new {instanceName}\r\n{UDecompilingState.Tabs}{{{propertyValue}\r\n{UDecompilingState.Tabs}}}" : "default";
                             break;
                         }
 
@@ -701,57 +734,43 @@ namespace UELib.Core
                                 break;
                             }
 
-                            deserializeFlags |= DeserializeFlags.WithinArray;
-                            if( (deserializeFlags & DeserializeFlags.WithinStruct) != 0 )
+                            var friendlyType = "";
+                            for (UStruct p = (UStruct)property.Outer; p != null; p = p.Super as UStruct)
                             {
-                                // Hardcoded fix for InterpCurve and InterpCurvePoint.
-                                if( String.Compare( Name, "Points", StringComparison.OrdinalIgnoreCase ) == 0 )
+                                if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
                                 {
-                                    arrayType = PropertyType.StructProperty;
+                                    friendlyType = o.GetFriendlyType();
                                 }
-
-                                for( int i = 0; i < arraySize; ++ i )
-                                {
-                                    propertyValue += DeserializeDefaultPropertyValue( arrayType, ref deserializeFlags )
-                                        + (i != arraySize - 1 ? "," : String.Empty);
-                                }
-                                propertyValue = "(" + propertyValue + ")";
                             }
-                            else
+                            if(friendlyType == "")
+                                Debugger.Break();
+                            
+                            deserializeFlags |= DeserializeFlags.WithinArray;
+                            bool withinStruct = (deserializeFlags & DeserializeFlags.WithinStruct) != 0;
+                            
+                            // Hardcoded fix for InterpCurve and InterpCurvePoint.
+                            if( withinStruct && String.Compare( Name, "Points", StringComparison.OrdinalIgnoreCase ) == 0 )
                             {
-                                var friendlyType = "";
-                                for (UStruct p = (UStruct)property.Outer; p != null; p = p.Super as UStruct)
-                                {
-                                    if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
-                                    {
-                                        friendlyType = o.GetFriendlyType();
-                                    }
-                                }
-                                if(friendlyType == "")
-                                    Debugger.Break();
+                                arrayType = PropertyType.StructProperty;
+                            }
 
-                                propertyValue += Name + $" = new {friendlyType}{{";
+                            using (UDecompilingState.TabScope())
+                            {
                                 for( int i = 0; i < arraySize; ++ i )
                                 {
                                     string elementValue = DeserializeDefaultPropertyValue( arrayType, ref deserializeFlags );
-                                    if( (_TempFlags & ReplaceNameMarker) != 0 )
+                                    if( withinStruct == false && (_TempFlags & ReplaceNameMarker) != 0 )
                                     {
-                                        propertyValue += elementValue.Replace( "%ARRAYNAME%", Name + "[" + i + "]" );
+                                        elementValue = elementValue.Replace( "%ARRAYNAME%=", "//"+Name + "[" + i + "]=\r\n" + UDecompilingState.Tabs );
                                         _TempFlags = 0x00;
                                     }
-                                    else
-                                    {
-                                        propertyValue += elementValue+", ";
-                                    }
 
-                                    if( i != arraySize - 1 )
-                                    {
-                                        propertyValue += "\r\n" + UDecompilingState.Tabs;
-                                    }
+                                    propertyValue += $"\r\n{UDecompilingState.Tabs}{elementValue},";
                                 }
-
-                                propertyValue += "}";
                             }
+                            propertyValue = $"new {friendlyType}\r\n{UDecompilingState.Tabs}{{{propertyValue}\r\n{UDecompilingState.Tabs}}}";
+                            if (withinStruct == false)
+                                propertyValue = $"{Name} = {propertyValue}";
 
                             _TempFlags |= DoNotAppendName;
                             break;

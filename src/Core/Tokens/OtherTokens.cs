@@ -233,6 +233,7 @@ namespace UELib.Core
                     string outerStr = DecompileNext();
                     string nameStr = DecompileNext();
                     string flagsStr = DecompileNext();
+                    var classStuff = Decompiler.PeekToken;
                     string classStr = DecompileNext();
 
                     string templateStr = String.Empty;
@@ -246,11 +247,11 @@ namespace UELib.Core
                     string output = String.Empty;
                     bool addComma = false;
 
-                    if( outerStr.Length != 0 )
+                    /*if( outerStr.Length != 0 )
                     {
                         output += outerStr;
                         addComma = true;
-                    }
+                    }*/
 
                     if( nameStr.Length != 0 )
                     {
@@ -286,6 +287,14 @@ namespace UELib.Core
                     }
 
                     Decompiler._CanAddSemicolon = true;
+
+                    if (classStuff is ObjectConstToken || classStuff is FieldToken)
+                        return $"{output}.New({outerStr})";
+                    
+
+                    if (outerStr.Length != 0)
+                        output += $"{{ Outer = {outerStr} }}";
+                    
                     return "new" + output;
                 }
             }

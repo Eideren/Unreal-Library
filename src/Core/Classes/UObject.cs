@@ -393,9 +393,9 @@ namespace UELib.Core
         [Pure]
         public virtual string GetFriendlyType()
         {
-            if (Outer != null)
-                return Outer.GetFriendlyType() + "." + Name;
-            return Package.PackageName+"."+Name;
+            string output = Outer != null && Outer is UPackage == false ? Outer.GetFriendlyType() + "." : "";
+            output += Name;
+            return output;
         }
 
         [Pure]

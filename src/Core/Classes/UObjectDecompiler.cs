@@ -14,17 +14,12 @@ namespace UELib.Core
                 BeginDeserializing();
             }
 
-            string output = $"var {Name} = new {Class.Name}(){{\r\n";
-            UDecompilingState.AddTabs( 1 );
-            try
+            string output;
+            using (UDecompilingState.TabScope())
             {
-                output += DecompileProperties().Replace(';', ',');
+                output = DecompileProperties().Replace(';', ',');
             }
-            finally
-            {
-                UDecompilingState.RemoveTabs( 1 );
-            }
-            return output + String.Format( "{0}}};\r\n{0}// Reference: {1}'{2}'", UDecompilingState.Tabs, Class.Name, GetOuterGroup() );
+            return $"new {Class.Name}()\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */";
         }
 
         // Ment to be overriden!

@@ -47,6 +47,18 @@ namespace UELib.Core
                 {
                     return String.Empty;
                 }
+                
+                public string DecompileAndCatch()
+                {
+                    try
+                    {
+                        return Decompile();
+                    }
+                    catch( Exception e )
+                    {
+                        return GetType().Name + "(" + e.GetType().Name + ")";
+                    }
+                }
 
                 public virtual string Disassemble()
                 {
@@ -55,32 +67,15 @@ namespace UELib.Core
 
                 protected string DecompileNext()
                 {
-                    tryNext:
-                    var t = Decompiler.NextToken;
-                    if( t is DebugInfoToken )
-                    {
-                        goto tryNext;
-                    }
-
-                    try
-                    {
-                        return t.Decompile();
-                    }
-                    catch( Exception e )
-                    {
-                        return t.GetType().Name + "(" + e.GetType().Name + ")";
-                    }
+                    var t = GrabNextToken();
+                    return t.DecompileAndCatch();
                 }
 
                 protected Token GrabNextToken()
                 {
-                    tryNext:
-                    var t = Decompiler.NextToken;
-                    if( t is DebugInfoToken )
-                    {
-                        goto tryNext;
-                    }
-                    return t;
+                    Token output;
+                    while ((output = Decompiler.MoveToNextToken()) is DebugInfoToken){ }
+                    return output;
                 }
 
                 protected Token DeserializeNext()
@@ -94,6 +89,18 @@ namespace UELib.Core
                         GetType().Name, RepresentToken, Position, Size ).Replace( "\n", "\n"
                         + UDecompilingState.Tabs
                     );
+                }
+
+                public UField TryGetAssociatedFieldToken()
+                {
+                    var v = this;
+                    while (v is ContextToken ct)
+                        v = ct.TargetHack;
+                    if(v is StructMemberToken smt)
+                        return smt.MemberProperty;
+                    if (v is FieldToken f)
+                        return f.Object as UField;
+                    return null;
                 }
             }
 

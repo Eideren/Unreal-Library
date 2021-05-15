@@ -36,9 +36,13 @@ namespace UELib.Core
             [System.ComponentModel.DefaultValue(-1)]
             public int CurrentTokenIndex{ get; set; }
 
-            public Token NextToken
+            public Token MoveToNextToken()
             {
-                get{ return DeserializedTokens[++ CurrentTokenIndex]; }
+                // Previously NextToken{ get; },
+                // a get for a property should never change the object's state, granted given the name the side effect is fairly obvious
+                // but when debugging, users might want to inspect the decompiler's state, making it impossible to do so without
+                // breaking it since the debugger will call all gets on all properties to show their current values
+                return DeserializedTokens[++ CurrentTokenIndex];
             }
 
             public Token PeekToken
@@ -1239,7 +1243,7 @@ namespace UELib.Core
                 }
 
                 // Reset these, in case of a loop in the Decompile function that did not finish due exception errors!
-                _IsWithinClassContext = false;
+                _IsWithinClassContext = ClassContext.No;
                 _CanAddSemicolon = false;
                 _MustCommentStatement = false;
                 _PostIncrementTabs = 0;
@@ -1289,7 +1293,7 @@ namespace UELib.Core
             ///
             /// HACK: For static calls -> class'ClassA'.static.FuncA();
             /// </summary>
-            private bool _IsWithinClassContext;
+            private ClassContext _IsWithinClassContext;
             private bool _CanAddSemicolon;
             private bool _MustCommentStatement;
 
@@ -1300,6 +1304,13 @@ namespace UELib.Core
 
             public string PreComment;
             public string PostComment;
+
+            public enum ClassContext
+            {
+                No,
+                Class,
+                TypeContext
+            }
 
             public string Decompile()
             {
@@ -1331,7 +1342,7 @@ namespace UELib.Core
                             //Decompile chain==========
                             {
                                 string tokenOutput;
-                                var newToken = NextToken;
+                                var newToken = MoveToNextToken();
                                 output.Append( DecompileLabels() );
                                 try
                                 {
@@ -1495,10 +1506,9 @@ namespace UELib.Core
                         {
                             output.Append( "\r\n" + UDecompilingState.Tabs
                                 + "// Failed to decompile this line:\r\n" );
-                            UDecompilingState.AddTab();
-                            output.Append( UDecompilingState.Tabs + "/* "
-                                + FormatTokens( tokenBeginIndex, CurrentTokenIndex ) + " */\r\n" );
-                            UDecompilingState.RemoveTab();
+                            using(UDecompilingState.TabScope())
+                                output.Append( UDecompilingState.Tabs + "/* "
+                                    + FormatTokens( tokenBeginIndex, CurrentTokenIndex ) + " */\r\n" );
                             output.Append( UDecompilingState.Tabs + "// " + FormatTabs( e.Message ) );
                             spewOutput = true;
                         }

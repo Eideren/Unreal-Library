@@ -1,13 +1,30 @@
 ﻿#if DECOMPILE
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace UELib.Core
 {
     public partial class UFunction
     {
-        public bool OverridenByState = false;
-        
+        public bool OverridenByState
+        {
+            get
+            {
+                for (var s = this; s != null; s = s.Super as UFunction)
+                {
+                    if (s.SelfOverridenByState)
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        }
+
+        public bool SelfOverridenByState;
+
         /// <summary>
         /// Decompiles this object into a text format of:
         ///
@@ -21,6 +38,7 @@ namespace UELib.Core
         /// <returns></returns>
         public override string Decompile()
         {
+            string header = FormatHeader();
             string code;
             try
             {
@@ -30,7 +48,8 @@ namespace UELib.Core
             {
                 code = e.Message;
             }
-            return FormatHeader() + (String.IsNullOrEmpty( code ) ? "{}" : code);
+            
+            return header + code;
         }
 
         public string NameOfSpecificFunctionImplementation
@@ -177,7 +196,7 @@ namespace UELib.Core
 
             if( HasFunctionFlag( Flags.FunctionFlags.Delegate ) )
             {
-                output += "delegate ";
+                importantOutput += "delegate ";
                 isNormalFunction = false;
             }
 
@@ -203,7 +222,22 @@ namespace UELib.Core
             {
                 output += "function ";
             }
-            return "/*"+output+"*/"+importantOutput;
+
+            if (output.Length > 0)
+                output = $"/*{output}*/";
+            return output+importantOutput;
+        }
+
+        public string EmptyInlineDeclaration()
+        {
+            var parameters = FormatParms();
+            var paramsAsDiscard = string.Join("", (
+                from c in parameters
+                where c == ','
+                select "_"+c));
+            if (string.IsNullOrWhiteSpace(parameters) == false)
+                paramsAsDiscard += "_";
+            return $"({paramsAsDiscard})=>{(ReturnType() != "void" ? "default" : "{}" )}";
         }
 
         protected override string FormatHeader()
@@ -225,31 +259,20 @@ namespace UELib.Core
                 output = metaData + "\r\n" + output;
 
             var overridingType = (Super != null ? "override" : "virtual");
-            if (IsStateFunction || HasFunctionFlag(Flags.FunctionFlags.Static))
+            if (HasFunctionFlag(Flags.FunctionFlags.Delegate) || IsStateFunction || HasFunctionFlag(Flags.FunctionFlags.Static) || (this.Outer as UClass).IsClassInterface())
                 overridingType = "";
 
             var returnType = ReturnType();
 
-            var overridenByState = false;
-            for (var s = this; s != null; s = s.Super as UFunction)
-            {
-                if (s.OverridenByState)
-                {
-                    overridenByState = true;
-                    break;
-                }
-            }
-
-            if(overridenByState && Outer.GetType() != typeof(UState) /*Ignore for in-state defined functions*/)
+            if(OverridenByState && Outer is UClass /*Ignore for in-state defined functions*/)
             {
                 if(Super == null)
                     output += $"public delegate {returnType} {Name}_del({FormatParms()});\r\n";
-                
                 output += $"public {overridingType} {Name}_del {Name} {{ get => bfield_{Name} ?? {NameOfSpecificFunctionImplementation}; set => bfield_{FriendlyName} = value; }} {FriendlyName}_del bfield_{FriendlyName};\r\n";
                 output += $"public {overridingType} {Name}_del global_{Name} => {NameOfSpecificFunctionImplementation};\r\n";
                 overridingType = "";
             }
-            output += $"{(Outer.GetType() == typeof(UState) ? "protected" : "public" )} {overridingType} {FormatFlags()}{returnType} {NameOfSpecificFunctionImplementation}({FormatParms()})";
+            output += $"{(Outer is UClass ? "public" : "protected" )} {overridingType} {FormatFlags()}{returnType} {NameOfSpecificFunctionImplementation}({FormatParms()})";
 
             if( HasFunctionFlag( Flags.FunctionFlags.Const ) )
             {
@@ -318,8 +341,13 @@ namespace UELib.Core
 
         private string FormatCode()
         {
+            bool forceReturn = UnrealConfig.StubMode;
+            bool forceDefaultOut = UnrealConfig.StubMode;
+            if (UnrealConfig.StubMode && (this.Outer as UClass)?.IsClassInterface() == true)
+                return ";";
+            
             UDecompilingState.AddTabs( 1 );
-            string locals = FormatLocals();
+            string locals = UnrealConfig.StubMode ? "" : FormatLocals();
             if( locals != String.Empty )
             {
                 locals += "\r\n";
@@ -327,7 +355,7 @@ namespace UELib.Core
             string code;
             try
             {
-                code = DecompileScript();
+                code = UnrealConfig.StubMode ? "" : DecompileScript();
             }
             catch( Exception e )
             {
@@ -338,9 +366,36 @@ namespace UELib.Core
                 UDecompilingState.RemoveTabs( 1 );
             }
 
+            if (HasFunctionFlag(Flags.FunctionFlags.Delegate) && string.IsNullOrEmpty(code))
+                return ";";
+
             if (HasFunctionFlag(Flags.FunctionFlags.Native))
             {
-                code += UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
+                code += "\r\n" + UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
+                forceDefaultOut = true;
+                forceReturn = true;
+            }
+
+            // Empty function!
+            if( String.IsNullOrEmpty( locals ) && String.IsNullOrEmpty( code ) )
+            {
+                forceReturn = true;
+            }
+
+            if (forceReturn == false 
+                && (ReturnProperty != null || HasFunctionFlag(Flags.FunctionFlags.Iterator))
+                // When the code doesn't end with return, add a default one with warning
+                // Make sure to ignore commented out returns
+                && Regex.Match(Regex.Replace(code, @"\/\/[^\n\r]*", _ => ""), @"return [^;]+;\s*$") is Match m && m.Success == false)
+            {
+                using (UDecompilingState.TabScope())
+                    code += $"\r\n{UDecompilingState.Tabs}#warning decompiling process did not include a return on the last line, added default return\r\n";
+                forceReturn = true;
+            }
+
+            /* Unreal's Out is actually a pass by reference, therefore the function might actually only read from it, we shouldn't set default
+            if (forceDefaultOut)
+            {
                 if (HasFunctionFlag(Flags.FunctionFlags.Iterator) == false)
                 {
                     foreach (UProperty param in Params)
@@ -349,22 +404,40 @@ namespace UELib.Core
                             code += $"\r\n\t{UDecompilingState.Tabs}{param.Name} = default;";
                     }
                 }
+            }*/
+
+            {
+                int balance = 0;
+                foreach (char c in code)
+                {
+                    if (c == '{')
+                        balance += 1;
+                    else if (c == '}')
+                        balance -= 1;
+                }
+
+                if (balance > 0)
+                {
+                    code += $"\r\n{UDecompilingState.Tabs}#warning Force closing unclosed braces, verify that the logic therein is valid";
+                    do
+                    {
+                        code += $"\r\n{UDecompilingState.Tabs}}}";
+                    } while (--balance > 0);
+                }
+            }
+
+            if (forceReturn)
+            {
                 if (HasFunctionFlag(Flags.FunctionFlags.Iterator))
                     code += "\r\n\t" + UDecompilingState.Tabs + "yield return default;";
                 if (ReturnProperty != null)
                     code += "\r\n\t" + UDecompilingState.Tabs + "return default;";
             }
 
-            // Empty function!
-            if( String.IsNullOrEmpty( locals ) && String.IsNullOrEmpty( code ) )
-            {
-                return String.Empty;
-            }
-
             return UnrealConfig.PrintBeginBracket() + "\r\n" +
-                locals +
-                code +
-                UnrealConfig.PrintEndBracket();
+                   locals +
+                   code +
+                   UnrealConfig.PrintEndBracket();
         }
     }
 }

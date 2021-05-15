@@ -1,6 +1,7 @@
 ﻿#if DECOMPILE
 using System;
 using System.Globalization;
+using System.Linq;
 
 namespace UELib.Core
 {
@@ -34,19 +35,29 @@ namespace UELib.Core
         public override string Decompile()
         {
             string postfix = "";
-            if (_IsArray)
+            if (this.Outer.GetType() == typeof(UScriptStruct) && IsArray)
+            {
+                var type = GetFriendlyType();
+                if (ArrayEnum == null && type != "int" && type != "float" && type != "byte")
+                {
+                    return $"{FormatFlags()}FixedArray<{type}, (\r\n{UDecompilingState.Tabs}\t{string.Join($",\r\n{UDecompilingState.Tabs}\t", Enumerable.Repeat(type, ArrayDim))})>/*{ArrayDim}*/ {Name}{DecompileMeta()}";
+                }
+
+                return $"fixed {FormatFlags()}{GetFriendlyType()} {Name}{FormatSize()}{DecompileMeta()}";
+            }
+            else if (IsArray)
                 postfix = " = new " + GetFriendlyType() + FormatSize();
             if ((PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm) != 0)
-                postfix = " = default";
+                postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";
             
             return FormatFlags() + GetFriendlyType() + FormatIsArray() 
-                                 + " " + Name + postfix
-                                 + DecompileMeta();
+                   + " " + Name + postfix
+                   + DecompileMeta();
         }
 
         private string FormatSize()
         {
-            if( !_IsArray )
+            if( !IsArray )
             {
                 return string.Empty;
             }
@@ -59,7 +70,7 @@ namespace UELib.Core
 
         private string FormatIsArray()
         {
-            if( !_IsArray )
+            if( !IsArray )
             {
                 return string.Empty;
             }
@@ -165,7 +176,7 @@ namespace UELib.Core
 
                 if( (PropertyFlags & (ulong)Flags.PropertyFlagsLO.OutParm) != 0 )
                 {
-                    importantFlags += "ref ";
+                    importantFlags += "ref "; // UnrealScript's out is a pass by reference
                     copyFlags &= ~(ulong)Flags.PropertyFlagsLO.OutParm;
                 }
 

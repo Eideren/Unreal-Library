@@ -91,19 +91,27 @@ namespace UELib.Core
                 }
             }
 
-            if (GetType() != typeof(UState))
+            if (this is UClass thisClass)
             {
+                foreach (var undefFunc in from s in thisClass.States from f in s.Functions where f.Super == null select f)
+                {
+                    output += $"\r\npublic delegate {undefFunc.ReturnType()} {undefFunc.Name}_del({undefFunc.FormatParms()});\r\n";
+                    output += $"public virtual {undefFunc.Name}_del {undefFunc.Name} {{ get => bfield_{undefFunc.Name} ?? ({undefFunc.EmptyInlineDeclaration()}); set => bfield_{undefFunc.FriendlyName} = value; }} {undefFunc.FriendlyName}_del bfield_{undefFunc.FriendlyName};\r\n";
+                    output += $"public virtual {undefFunc.Name}_del global_{undefFunc.Name} => {undefFunc.EmptyInlineDeclaration()};\r\n";
+                }
+                
                 // Restore function state
                 string restoreInstructions = "";
-                UDecompilingState.AddTab();
-                foreach (var scriptFunction in formatFunctions)
+                using (UDecompilingState.TabScope())
                 {
-                    if (scriptFunction.OverridenByState)
+                    foreach (var scriptFunction in formatFunctions)
                     {
-                        restoreInstructions += $"{UDecompilingState.Tabs}{scriptFunction.Name} = null;\r\n";
+                        if (scriptFunction.OverridenByState)
+                        {
+                            restoreInstructions += $"{UDecompilingState.Tabs}{scriptFunction.Name} = null;\r\n";
+                        }
                     }
                 }
-                UDecompilingState.RemoveTab();
 
                 if (restoreInstructions != "")
                 {
@@ -121,47 +129,41 @@ namespace UELib.Core
                 return String.Empty;
             }
             
-            UDecompilingState.AddTab();
             string swapAndIgnore = "";
             var inheritance = new List<UState>();
-            for (var curr = this; curr != null; curr = curr.Super != null && curr.Name == curr.Super.Name ? null : curr.Super as UState)
+            using (UDecompilingState.TabScope())
             {
-                inheritance.Add(curr);
-                string overrides = String.Empty;
-                string ignores = String.Empty;
-                foreach( var scriptFunction in curr.Functions )
+                for (var curr = this; curr != null; curr = curr.Super != null && curr.Name == curr.Super.Name ? null : curr.Super as UState)
                 {
-                    try
+                    inheritance.Add(curr);
+                    string overrides = String.Empty;
+                    string ignores = String.Empty;
+                    foreach( var scriptFunction in curr.Functions )
                     {
-                        if (scriptFunction.Name == "BeginState" || scriptFunction.Name == "EndState")
-                            continue;
-                        if (scriptFunction.HasFunctionFlag(Flags.FunctionFlags.Defined))
-                            overrides += $"{UDecompilingState.Tabs}{scriptFunction.Name} = {scriptFunction.NameOfSpecificFunctionImplementation};\r\n";
-                        else if (curr._IgnoreMask != long.MaxValue)
+                        try
                         {
-                            var parameters = scriptFunction.FormatParms();
-                            var paramsAsDiscard = string.Join("", (
-                                from c in parameters
-                                where c == ','
-                                select "_"+c));
-                            if (string.IsNullOrWhiteSpace(parameters) == false)
-                                paramsAsDiscard += "_";
-                            ignores += $" {scriptFunction.Name} = ({paramsAsDiscard})=>{{{(scriptFunction.ReturnType() != "void" ? "return default;" : "" )}}};";
+                            if (scriptFunction.Name == "BeginState" || scriptFunction.Name == "EndState")
+                                continue;
+                            if (scriptFunction.HasFunctionFlag(Flags.FunctionFlags.Defined))
+                                overrides += $"{UDecompilingState.Tabs}{scriptFunction.Name} = {scriptFunction.NameOfSpecificFunctionImplementation};\r\n";
+                            else if (curr._IgnoreMask != long.MaxValue)
+                            {
+                                ignores += $" {scriptFunction.Name} = {scriptFunction.EmptyInlineDeclaration()};";
+                            }
+                        }
+                        catch( Exception e )
+                        {
+                            overrides += "\r\n" + UDecompilingState.Tabs + "// F:" + scriptFunction.Name + " E:" + e;
                         }
                     }
-                    catch( Exception e )
-                    {
-                        overrides += "\r\n" + UDecompilingState.Tabs + "// F:" + scriptFunction.Name + " E:" + e;
-                    }
-                }
-                if(ignores != "")
-                    ignores = $"{UDecompilingState.Tabs}/*ignores*/{ignores}\r\n\r\n";
+                    if(ignores != "")
+                        ignores = $"{UDecompilingState.Tabs}/*ignores*/{ignores}\r\n\r\n";
 
-                swapAndIgnore = $"{ignores}{overrides}\r\n{swapAndIgnore}";
-                if(curr != this)
-                    swapAndIgnore = $"\r\n{UDecompilingState.Tabs}// Inherited from {curr.Outer.Name}.{curr.Name}\r\n{swapAndIgnore}";
+                    swapAndIgnore = $"{ignores}{overrides}\r\n{swapAndIgnore}";
+                    if(curr != this)
+                        swapAndIgnore = $"\r\n{UDecompilingState.Tabs}// Inherited from {curr.Outer.Name}.{curr.Name}\r\n{swapAndIgnore}";
+                }
             }
-            UDecompilingState.RemoveTab();
             
             
             
@@ -221,9 +223,9 @@ namespace UELib.Core
 
             for (var s = this; s != null; s = s.Super as UState)
             {
-                UDecompilingState.AddTab();
-                var script = s.DecompileScript();
-                UDecompilingState.RemoveTab();
+                string script;
+                using (UDecompilingState.TabScope())
+                    script = s.DecompileScript();
                 script = script.Replace("\r", "");
                 var partialScope = "";
                 var scopeLabel = "";
@@ -258,31 +260,31 @@ namespace UELib.Core
                 }
             }
 
-            UDecompilingState.AddTab();
             var logic = "";
-            foreach (var (label, scope) in labelScopes)
+            using (UDecompilingState.TabScope())
             {
-                if(label == "Begin")
-                    logic += $"{UDecompilingState.Tabs}if(jumpTo == null || jumpTo == \"Begin\")";
-                else
-                    logic += $"{UDecompilingState.Tabs}if(jumpTo == {label})";
-                UDecompilingState.AddTab();
-                logic += $"\r\n{UDecompilingState.Tabs}goto Begin;\r\n";
-                UDecompilingState.RemoveTab();
+                foreach (var (label, scope) in labelScopes)
+                {
+                    if (label == "Begin")
+                        logic += $"{UDecompilingState.Tabs}if(jumpTo == null || jumpTo == \"Begin\")";
+                    else
+                        logic += $"{UDecompilingState.Tabs}if(jumpTo == \"{label}\")";
+                    using (UDecompilingState.TabScope())
+                        logic += $"\r\n{UDecompilingState.Tabs}goto {label};\r\n";
+                }
+
+                foreach (var (label, scope) in labelScopes)
+                {
+                    logic += $"\r\n{UDecompilingState.Tabs}{label}:{{}}";
+                    // Add comment to specify from which state we received this label when deriving
+                    if (scope.source != this)
+                        logic += $"// {scope.source.Outer.Name}.{scope.source.Name}";
+                    logic += $"\r\n{scope.content}";
+                }
             }
 
-            foreach (var(label, scope) in labelScopes)
-            {
-                logic += $"\r\n{UDecompilingState.Tabs}{label}:{{}}";
-                // Add comment to specify from which state we received this label when deriving
-                if (scope.source != this)
-                    logic += $"// {scope.source.Outer.Name}.{scope.source.Name}";
-                logic += $"\r\n{scope.content}";
-            }
-            UDecompilingState.RemoveTab();
-
-            if(labelScopes.Count > 1) // Not sure how to deal with multiple labels within a state, does the execution continue to the next label when at the end of this label's scope
-                System.Diagnostics.Debugger.Break();
+            if (labelScopes.Count > 1) // Not sure how to deal with multiple labels within a state, does the execution continue to the next label when at the end of this label's scope
+                logic += "\r\n#error not sure how to deal with multiple labels within the same state, does the execution continue to the next label when at the end of this label's scope\r\n";
             
             return @$"{FormatConstants()}
 {beginScope}

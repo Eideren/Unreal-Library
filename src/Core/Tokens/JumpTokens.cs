@@ -1,6 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace UELib.Core
 {
@@ -426,14 +426,19 @@ namespace UELib.Core
                 {
                     Decompiler._Nester.AddNestBegin( NestManager.Nest.NestType.Switch, Position );
 
-                    string expr = DecompileNext();
+                    var t = GrabNextToken();
+                    ParamHack = t;
+                    string expr = t.DecompileAndCatch();
                     Decompiler._CanAddSemicolon = false;    // In case the decompiled token was a function call
                     return "switch(" + expr + ")";
                 }
+
+                public Token ParamHack;
             }
 
             public class CaseToken : JumpToken
             {
+                public SwitchToken OwnerHack;
                 public override void Deserialize( IUnrealStream stream )
                 {
                     base.Deserialize( stream );
@@ -442,47 +447,39 @@ namespace UELib.Core
                         DeserializeNext();  // Condition
                     }   // Else "Default:"
                 }
-
-                // HACK: To avoid from decrementing tabs more than once,
-                //  e.g. in a situation of case a1: case a2: case a3: that use the same block code.
-                private static byte _CaseStack;
+                
                 public override string Decompile()
                 {
-                    // HACK: If this case is inside another case, end the last case to avoid broken indention.
-                    // -> Original
-                    //      case 0:
-                    //      case 1:
-                    //      case 2:
-                    //          CallA();
-                    //          break;
-                    //
-                    //  ->(Without the hack) Decompiled
-                    //      case 0:
-                    //          case 1:
-                    //              case 2:
-                    //                  CallA();
-                    //                  break;
-                    if( Decompiler.IsInNest( NestManager.Nest.NestType.Switch ) == null && _CaseStack == 0 )
-                    {
-                        Decompiler._Nester.AddNestEnd( NestManager.Nest.NestType.Default, Position );
-                        Decompiler._PreDecrementTabs = 1;
-
-                        ++ _CaseStack;
-                    }
-                    else _CaseStack = 0;
-
                     Commentize();
-                    if( CodeOffset != UInt16.MaxValue )
-                    {
+                    OwnerHack = Decompiler._NestChain[Decompiler._NestChain.Count - 1].Creator as SwitchToken;
+
+
+                    bool isDefault = CodeOffset == UInt16.MaxValue;
+                    if(isDefault)
+                        Decompiler._Nester.AddNestBegin( NestManager.Nest.NestType.Default, Position, this );
+                    else
                         Decompiler._Nester.AddNest( NestManager.Nest.NestType.Case, Position, CodeOffset );
-                        string output = "case " + DecompileNext() + ":";
-                        Decompiler._CanAddSemicolon = false;
-                        return output;
+                    string output = isDefault ? "default:" : $"case {DecompileNext()}:";
+                    
+                    
+                    var i = Decompiler.DeserializedTokens.IndexOf(this);
+                    var previous = Decompiler.DeserializedTokens[i - 1];
+
+                    // Find previous case token and add an explicit fallthrough as C# doesn't support implicit fallthrough from non-empty cases 
+                    if ((previous is NothingToken/*return nothing*/ || previous is JumpToken) == false)
+                    {
+                        for (int j = i-1; j > 0; j--)
+                        {
+                            if (Decompiler.DeserializedTokens[j] is CaseToken ct && ct.CodeOffset == Position && ReferenceEquals(ct.OwnerHack, OwnerHack))
+                            {
+                                if(ct.Position + ct.Size != Position) // the previous case is not an empty fallthrough
+                                    output = $"\tgoto {output.Replace(':', ';')}// UnrealScript fallthrough\r\n{UDecompilingState.Tabs}{output}";
+                            }
+                        }
                     }
 
-                    Decompiler._Nester.AddNestBegin( NestManager.Nest.NestType.Default, Position, this );
                     Decompiler._CanAddSemicolon = false;
-                    return "default:";
+                    return output;
                 }
             }
 
@@ -498,41 +495,48 @@ namespace UELib.Core
                 {
                     Decompiler._Nester.AddNest( NestManager.Nest.NestType.ForEach, Position, CodeOffset, this );
                     Commentize();
-
+                    
+                    var t = GrabNextToken();
+                    string expression = t.DecompileAndCatch();
+                    var asFunction = t as FunctionToken;
+                    if (asFunction == null && t is ContextToken ctx && ctx.TargetHack is FunctionToken fToken)
+                        asFunction = fToken;
+                    if (asFunction == null)
+                        System.Diagnostics.Debugger.Break();
+                    
                     // foreach FunctionCall
-                    string expression = DecompileNext();
                     Decompiler._CanAddSemicolon = false;    // Undo
-                    var m = Regex.Match(expression, @"(?<Func>[^\(]*)(?<Params>\([^$]*)");
-                    var func = m.Groups["Func"].ToString();
-                    var parametersText = m.Groups["Params"].ToString();
-                    parametersText = parametersText.Substring(1, parametersText.Length - 2);
-                    var parameters = parametersText.Split(',', StringSplitOptions.TrimEntries);
-
-                    var vars = "";
-                    var finalParameters = "";
-                    if (parameters.Length == 2)
+                    
+                    var iteratorVariable = "";
+                    var funcParam = "";
+                    foreach (var parameter in asFunction.ParamsHack)
                     {
-                        vars = parameters[1];
-                        finalParameters = parameters[0];
+                        if (parameter.StartsWith("ref "))
+                            iteratorVariable += parameter.Remove(0, "ref ".Length);
+                        else if(parameter.StartsWith("ref/*probably?*/ "))
+                            iteratorVariable += parameter.Remove(0, "ref/*probably?*/ ".Length);
+                        else
+                            funcParam += parameter + ", ";
                     }
-                    else
-                    {
-                        foreach (var parameter in parameters)
-                        {
-                            if (parameter.StartsWith("ref "))
-                                vars += parameter.Remove(0, 4) + " ";
-                            else
-                                finalParameters += parameter + ", ";
-                        }
 
-                        if (finalParameters != "")
-                            finalParameters = finalParameters.Substring(0, finalParameters.Length - 2);
-                    }
-                    if (vars == "")
-                        vars = "/*no refs specified*/";
+                    if (funcParam != "")
+                        funcParam = funcParam.Substring(0, funcParam.Length - 2);
+                    
+                    var additionalCast = "";
+                    if (iteratorVariable == "")
+                        iteratorVariable = "/*no refs specified*/";
+                    else if (Decompiler._Container is UFunction f && (from x in f.Locals where x.Name == iteratorVariable select x).FirstOrDefault() is UProperty matchingLocal)
+                        additionalCast = $"({matchingLocal.GetFriendlyType()})";
+                    else if(iteratorVariable.StartsWith("NullRef.") == false)
+                        System.Diagnostics.Debugger.Break();
+
+                    if (funcParam.StartsWith("ClassT<") && funcParam.EndsWith(">()"))
+                        additionalCast = $"({funcParam.Substring(0, funcParam.Length - ">()".Length).Remove(0, "ClassT<".Length)})";
+
 
                     var enumName = $"e{Position}";
-                    return $"using var {enumName} = {func}({finalParameters}).GetEnumerator();\r\n/*foreach {expression}*/while({enumName}.MoveNext() && ({vars} = {enumName}.Current) == {vars})";
+                    var funcDef = expression.Substring(0, expression.IndexOf(asFunction.FunctionName) + asFunction.FunctionName.Length);
+                    return $"\r\n{UDecompilingState.Tabs}// foreach {expression}\r\n{UDecompilingState.Tabs}using var {enumName} = {funcDef}({funcParam}).GetEnumerator();\r\n{UDecompilingState.Tabs}while({enumName}.MoveNext() && ({iteratorVariable} = {additionalCast}{enumName}.Current) == {iteratorVariable})";
                 }
             }
 
@@ -566,10 +570,16 @@ namespace UELib.Core
                     var varName = DecompileNext();
                     var param = DecompileNext();
                     string output = "foreach(var " + varName + " in " + iterator;
+
+                    string additionalCast = null;
+                    if (Decompiler._Container is UFunction f && (from x in f.Locals where x.Name == varName select x).FirstOrDefault() is UProperty matchingLocal)
+                        additionalCast = $"({matchingLocal.GetFriendlyType()})";
+                    
+                    
                     if (HasSecondParm)
                         output += (HasSecondParm ? ", " : String.Empty) + param;
                     else
-                        output = $"using var v = {iterator}.GetEnumerator();for (; v.MoveNext() && ({varName} = v.Current)=={varName}; ";
+                        output = $"using var v = {iterator}.GetEnumerator();while(v.MoveNext() && ({varName} = {additionalCast}v.Current) == {varName}";
                     Decompiler._CanAddSemicolon = false;
                     return output + ")";
                 }

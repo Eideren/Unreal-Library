@@ -51,10 +51,10 @@ namespace UELib.Core
                     {
                         if (o is UClass)
                         {
-                            return $"new {o.Package.PackageName}.{o.Name}()." + base.Decompile();
+                            return $"DefaultAs<{o.GetFriendlyType()}>()." + base.Decompile();
                         }
                     }
-                    return "default." + base.Decompile();
+                    return "Default()." + base.Decompile();
                 }
             }
 

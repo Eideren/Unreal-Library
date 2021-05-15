@@ -118,6 +118,8 @@ namespace UELib.Core
         protected override void FindChildren()
         {
             base.FindChildren();
+            Params.Clear();
+            ReturnProperty = null;
             foreach( var property in Variables )
             {
                 if( property.HasPropertyFlag( PropertyFlagsLO.ReturnParm ) )

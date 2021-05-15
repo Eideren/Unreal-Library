@@ -64,21 +64,31 @@ namespace UELib.Core
          */
         public override string Decompile()
         {
-            var assembly = Assembly.GetAssembly( GetType() );
             var content = "";
 
             content += FormatHeader() +
-                FormatCPPText() +
-                FormatConstants() +
-                FormatEnums() +
-                FormatStructs() +
-                FormatProperties() +
-                FormatReplication() +
-                FormatFunctionsOuter() +
-                FormatStates() +
-                FormatDefaultProperties()+"\n}";
+                       FormatCPPText() +
+                       FormatConstants() +
+                       FormatEnums() +
+                       FormatStructs() +
+                       FormatWithin() +
+                       FormatProperties() +
+                       FormatReplication() +
+                       FormatFunctionsOuter() +
+                       FormatStates() +
+                       FormatDefaultProperties()+"\n}";
 
             return content;
+        }
+
+        public string FormatWithin()
+        {
+            if( IsClassWithin() )
+            {
+                return $"\r\n{UDecompilingState.Tabs}public new {Within.Name} Outer => base.Outer as {Within.Name};\r\n";
+            }
+
+            return "";
         }
 
         public string GetDependencies()
@@ -155,7 +165,7 @@ namespace UELib.Core
             if( Super != null
                 && !(IsClassInterface() && string.Compare( Super.Name, "Object", StringComparison.OrdinalIgnoreCase ) == 0) )
             {
-                output += " : " + Super.Name;
+                output += " : " + Super.GetFriendlyType();
                 hasSuper = true;
             }
 
@@ -206,7 +216,10 @@ namespace UELib.Core
                 {
                     foreach( int index in enumerableList )
                     {
-                        output += Package.GetIndexObjectName( index ) + ",";
+                        var i = Package.GetIndexObjectName(index);
+                        if (i == "Object")
+                            i = "Core.Object";
+                        output += i + ",";
                     }
                     output = output.TrimEnd( ',' );
                 }
@@ -461,7 +474,8 @@ namespace UELib.Core
             replicatedObjects.Clear();
 
             var output = new StringBuilder( "\r\n" + "replication" +  UnrealConfig.PrintBeginBracket() ); 
-            UDecompilingState.AddTab();
+            
+            using (UDecompilingState.TabScope()){
 
             foreach( var statement in statements )
             {
@@ -491,23 +505,24 @@ namespace UELib.Core
                     var statementFormat = string.Format( "{0} if({1})", statementType, statementCode );
                     output.Append( statementFormat );
 
-                    UDecompilingState.AddTab();
-                    // NetObjects
-                    for( int i = 0; i < statement.Value.Count; ++i )
+                    using (UDecompilingState.TabScope())
                     {
-                        var shouldSplit = i % 2 == 0;
-                        if( shouldSplit )
+                        // NetObjects
+                        for( int i = 0; i < statement.Value.Count; ++i )
                         {
-                            output.Append( "\r\n" + UDecompilingState.Tabs );
+                            var shouldSplit = i % 2 == 0;
+                            if( shouldSplit )
+                            {
+                                output.Append( "\r\n" + UDecompilingState.Tabs );
+                            }
+
+                            var netObject = statement.Value[i];
+                            output.Append( netObject.Name );
+
+                            var isNotLast = i != statement.Value.Count - 1;
+                            output.Append( isNotLast ? ", " : ";" );
                         }
-
-                        var netObject = statement.Value[i];
-                        output.Append( netObject.Name );
-
-                        var isNotLast = i != statement.Value.Count - 1;
-                        output.Append( isNotLast ? ", " : ";" );
                     }
-                    UDecompilingState.RemoveTab();
 
                     // IsNotLast
                     if( statements.Last().Key != statement.Key )
@@ -520,9 +535,12 @@ namespace UELib.Core
                     output.AppendFormat( "/* An exception occurred while decompiling a statement! ({0}) */", e );
                 }
             }
-            UDecompilingState.RemoveTab();
-            output.Append( UnrealConfig.PrintEndBracket() + "\r\n" );
-            return "/*"+output+"*/";
+            }
+            
+            output.Append( UnrealConfig.PrintEndBracket() );
+            output.Replace("\n", "\n//");
+            output.Append("\r\n");
+            return output.ToString();
         }
 
         private string FormatStates()
@@ -541,23 +559,45 @@ namespace UELib.Core
                 // add/override FindState function to include this class' states with it
 
                 output += $"{UDecompilingState.Tabs}protected override (System.Action<name>, StateFlow, System.Action<name>) FindState(name stateName)\r\n{{\r\n";
-                
-                UDecompilingState.AddTab();
-                output += $"{UDecompilingState.Tabs}switch(stateName)\r\n";
-                output += $"{UDecompilingState.Tabs}{{\r\n";
-                
-                UDecompilingState.AddTab();
-                foreach (var state in States)
-                    output += $"{UDecompilingState.Tabs}case \"{state.Name}\": return {state.Name}();\r\n";
-                output += $"{UDecompilingState.Tabs}default: return base.FindState(stateName);\r\n";
-                UDecompilingState.RemoveTab();
-                
-                output += $"{UDecompilingState.Tabs}}}\r\n";
-                UDecompilingState.RemoveTab();
+
+                using (UDecompilingState.TabScope())
+                {
+                    output += $"{UDecompilingState.Tabs}switch(stateName)\r\n";
+                    output += $"{UDecompilingState.Tabs}{{\r\n";
+
+                    using (UDecompilingState.TabScope())
+                    {
+                        foreach (var state in States)
+                            output += $"{UDecompilingState.Tabs}case \"{state.Name}\": return {state.Name}();\r\n";
+                        output += $"{UDecompilingState.Tabs}default: return base.FindState(stateName);\r\n";
+                    }
+
+                    output += $"{UDecompilingState.Tabs}}}\r\n";
+                }
                 
                 output += $"{UDecompilingState.Tabs}}}";
             }
+
+            var auto = (
+                from x in States
+                where x.HasStateFlag(Flags.StateFlags.Auto)
+                select x
+            );
             
+            if (auto.Any())
+            {
+                var inner = "";
+                foreach (var v in auto)
+                    inner += $"\n\treturn {v.Name}();";
+                if (auto.Count() > 1)
+                    inner += "\n\t#warning multiple autos";
+                output += $@"
+protected override (System.Action<name>, StateFlow, System.Action<name>) GetAutoState()
+{{
+{inner}
+}}";
+            }
+
             return output;
         }
     }

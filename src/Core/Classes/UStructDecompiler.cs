@@ -52,8 +52,16 @@ namespace UELib.Core
             var flags = FormatFlags();
             if (string.IsNullOrWhiteSpace(flags) == false)
                 flags = $"/*{flags}*/";
-            var output = "public struct " + flags + Name + (Super != null ? " " + FormatExtends() + " "
-                                                                     + Super.Name : String.Empty);
+
+            var unsafeCtx = "";
+            foreach (var property in Variables)
+            {
+                if (property.ArrayDim > 1)
+                    unsafeCtx = " unsafe";
+            }
+
+            // Note: C# doesn't support struct-struct inheritance, commenting out extends part, inheritance is replaced by copy pasting parent content into it
+            var output = $"public{unsafeCtx} struct {flags}{Name}" + (Super != null ? $"// {FormatExtends()} {Super.Name}" : String.Empty); 
             var metaData = DecompileMeta();
             if( metaData != String.Empty )
             {
@@ -209,10 +217,11 @@ namespace UELib.Core
 
         protected string FormatProperties()
         {
-            if( Variables == null || !Variables.Any() )
-                return String.Empty;
+            // Note: C# doesn't support struct-struct inheritance, pasting content of super in here
+            string output = IsClassType( "Class" ) ? "" : (Super as UStruct)?.FormatProperties() ?? String.Empty;
+            if (Variables == null || !Variables.Any())
+                return output;
 
-            string output = String.Empty;
             // Only for pure UStructs because UClass handles this on its own
             if( IsPureStruct() )
             {
@@ -263,15 +272,19 @@ namespace UELib.Core
 
         public string FormatDefaultProperties()
         {
+            string output = String.Empty;
+            // Note: C# doesn't support struct-struct inheritance, pasting content of super in here
+            using(UDecompilingState.TabScope())
+                output += IsClassType( "Class" ) ? "" : (Super as UStruct)?.DecompileProperties();
+            
             if( Default != null && Default != this )
             {
                 Default.BeginDeserializing();
             }
 
-            if( Properties == null || !Properties.Any() )
-                return String.Empty;
+            if( string.IsNullOrEmpty(output) && (Properties == null || !Properties.Any()) )
+                return output;
 
-            string output = String.Empty;
             string innerOutput;
 
             if( IsClassType( "Class" ) )
@@ -301,10 +314,15 @@ namespace UELib.Core
             {
                 UDecompilingState.RemoveTabs( 1 );
             }
-            if( IsClassType( "Class" ) )
-                return output + innerOutput + UDecompilingState.Tabs + "}";
-            else
-                return "/*" + output + innerOutput + UDecompilingState.Tabs + "}" + "*/";
+
+            output += innerOutput + UDecompilingState.Tabs + "}";
+
+            if (IsClassType("Class") == false)
+            {
+                output = output.Replace("\n", "\n//");
+            }
+
+            return output;
         }
 
         protected string FormatLocals()

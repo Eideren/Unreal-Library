@@ -239,9 +239,9 @@ namespace UELib.Core
                 {
                     Enums.Insert( 0, (UEnum)child );
                 }
-                else if( child is UStruct && ((UStruct)(child)).IsPureStruct() )
+                else if( child is UStruct s && s.IsPureStruct() )
                 {
-                    Structs.Insert( 0, (UStruct)child );
+                    Structs.Insert( 0, s );
                 }
             }
 

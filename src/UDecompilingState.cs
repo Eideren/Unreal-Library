@@ -20,6 +20,20 @@ namespace UELib
             Tabs += UnrealConfig.Indention;
         }
 
+        public static TabScopeDisposable TabScope()
+        {
+            AddTab();
+            return new TabScopeDisposable();
+        }
+
+        public struct TabScopeDisposable : IDisposable
+        {
+            public void Dispose()
+            {
+                RemoveTab();
+            }
+        }
+
         public static void RemoveTabs( int count )
         {
             count *= UnrealConfig.Indention.Length;

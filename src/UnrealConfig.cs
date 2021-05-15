@@ -7,6 +7,7 @@ namespace UELib
     public static class UnrealConfig
     {
         #region Config
+        public static bool StubMode;
         public static bool SuppressComments;
         public static bool SuppressSignature;
 
@@ -21,6 +22,7 @@ namespace UELib
         }
         public static CookedPlatform Platform;
         public static Dictionary<string, Tuple<string, PropertyType>> VariableTypes;
+        public static readonly List<UnrealPackage> SharedPackages = new List<UnrealPackage>();
         #endregion
 
         public static string PrintBeginBracket()

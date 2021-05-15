@@ -70,7 +70,7 @@ namespace UELib.Core
         #endregion
 
         #region General Members
-        private bool _IsArray
+        public bool IsArray
         {
             get{ return ArrayDim > 1; }
         }

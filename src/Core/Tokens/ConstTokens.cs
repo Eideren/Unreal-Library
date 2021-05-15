@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace UELib.Core
@@ -108,22 +109,102 @@ namespace UELib.Core
                     Decompiler.AlignSize( sizeof(byte) );
                 }
 
+
+                
+                bool FindEnum(out UEnum uEnum, out string debugError)
+                {
+                    var tokens = Decompiler.DeserializedTokens;
+                    var currToken = Decompiler.CurrentTokenIndex;
+
+
+                    uEnum = null;
+                    debugError = null;
+                    if (tokens[currToken - 1] is ByteToIntToken)
+                    {
+                        // Comparison or assignment between enum field and enum
+                        // Comparison between returned enum from function and enum
+                        // Assignment to function parameter
+                        uEnum = InnerFind(tokens[currToken - 2], tokens, out debugError)?.EnumObject;
+                    }
+
+                    // This is the value for a 'case:', try to find the switch's param value and parse this value to that param's type
+                    if (uEnum == null && Decompiler.PreviousToken is CaseToken ct && ct.OwnerHack.ParamHack is Token token)
+                    {
+                        uEnum = InnerFind(token, tokens, out debugError)?.EnumObject;
+                    }
+                    return uEnum != null;
+
+
+                    static UByteProperty InnerFind(Token token, List<Token> tokens, out string debugError)
+                    {
+                        debugError = null;
+                        if (token is ContextToken ctx)
+                        {
+                            // Find where this context sits within the tokens to find where the actual field referenced by this context is
+                            // Probably breaks if there is a context chain 
+                            int index;
+                            for (index = 0; index < tokens.Count; index++)
+                            {
+                                if (ReferenceEquals(tokens[index], ctx))
+                                    break;
+                            }
+
+                            token = tokens[index + 2];
+                        }
+                        
+                        // Comparison or assignment between enum field and enum
+                        if (token is FieldToken field)
+                            return field.Object as UByteProperty;
+                        else if (token is StructMemberToken structMember)
+                            return structMember.MemberProperty as UByteProperty;
+                        // Comparison between returned enum from function and enum
+                        else if (token is EndFunctionParmsToken e)
+                        {
+                            // Find index of this end token
+                            int index = -1;
+                            FunctionToken f;
+                            // Scan all tokens to find this end token
+                            while (ReferenceEquals(tokens[++index], e) == false) { }
+
+                            // Now scan backwards from there until we stumble upon the start of this end token
+                            while ((f = tokens[--index] as FunctionToken) == null) { }
+
+                            if (f is FinalFunctionToken ft)
+                                return ft.Function.ReturnProperty as UByteProperty;
+                            else if(f.TryFindFunction() is UFunction rf)
+                                return rf.ReturnProperty as UByteProperty;
+                            debugError = "/*unsupported function token*/";
+                            return null; // Would have to find this specific method from just the name to figure out what the return type is
+                        }
+                        else if (token is FunctionToken f)
+                        {
+                            if(f.TryFindFunction() is UFunction rf)
+                                return rf.ReturnProperty as UByteProperty;
+                            debugError = "/*unsupported function token*/";
+                            return null; // Would have to find this specific method from just the name to figure out what the return type is 
+                        }
+                        else if (token is DynamicArrayElementToken)
+                            return null; // not implemented yet
+                        
+                        System.Diagnostics.Debugger.Break();
+                        return null;
+                    }
+                }
+
+
+                
                 public override string Decompile()
                 {
-                    if( FieldToken.LastField != null )
+                    if (FindEnum(out var enumObject, out var errorInfo))
                     {
-                        switch( FieldToken.LastField.Outer.Name + FieldToken.LastField.Name )
-                        {
-                            case "ActorRemoteRole":
-                            case "ActorRole":
-                                return Enum.GetName( Package.Version >= 220 ? typeof(ENetRole3) : typeof(ENetRole), Value );
-
-                            case "LevelInfoNetMode":
-                            case "WorldInfoNetMode":
-                                return Enum.GetName( typeof(ENetMode), Value );
-                        }
+                        var index = Value;
+                        if (index < enumObject.Names.Count)
+                            return $"{enumObject.GetFriendlyType()}.{enumObject.Names[index]}/*{Value}*/";
+                        else
+                            return $"/*val out of enum range*/{Value}";
                     }
-                    return Value.ToString( CultureInfo.InvariantCulture );
+
+                    return errorInfo + Value.ToString(CultureInfo.InvariantCulture);
                 }
             }
 
@@ -174,13 +255,24 @@ namespace UELib.Core
                     UObject obj = Decompiler._Container.GetIndexObject( ObjectIndex );
                     if( obj != null )
                     {
+                        var nextToken = Decompiler.PeekToken;
+                        
                         // class'objectclasshere'
-                        string Class = obj.GetClassName();
-                        if( String.IsNullOrEmpty( Class ) )
+                        string className = obj.GetClassName();
+                        
+                        if( className == "Class" || String.IsNullOrEmpty( className ) )
                         {
-                            Class = "Class";
+                            if (nextToken is FunctionToken && Decompiler._IsWithinClassContext != ClassContext.No )
+                            {
+                                // This is the type that implements the static function we're going to call,
+                                // we just need the type name in this case and can omit 'Static.'
+                                Decompiler._IsWithinClassContext = ClassContext.TypeContext;
+                                return obj.Name;
+                            } 
+                            else
+                                return $"ClassT<{obj.Name}>()";
                         }
-                        return Class + "<" + obj.Name + ">()";
+                        return $"ObjectConst<{className}>(\"{obj.Name}\")";
                     }
                     return "default";
                 }

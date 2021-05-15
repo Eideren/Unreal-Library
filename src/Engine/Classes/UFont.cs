@@ -38,18 +38,26 @@ namespace UELib.Engine
 
         protected override void Deserialize()
         {
-            base.Deserialize();
+            return; // UFont breaks and I don't need it
+            try
+            {
+                base.Deserialize();
 
-            _Characters = new UArray<FontCharacter>( _Buffer );
+                _Characters = new UArray<FontCharacter>(_Buffer);
 
-            // Textures
+                // Textures
 
-            // Kerning
-            _Buffer.ReadInt32();
+                // Kerning
+                _Buffer.ReadInt32();
 
-            // Remap
+                // Remap
 
-            _Buffer.UR.ReadBoolean();
+                _Buffer.UR.ReadBoolean();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
         }
     }
 }

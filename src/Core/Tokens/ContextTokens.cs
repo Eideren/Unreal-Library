@@ -1,4 +1,6 @@
-﻿namespace UELib.Core
+﻿using System.Linq;
+
+namespace UELib.Core
 {
     public partial class UStruct
     {
@@ -53,17 +55,40 @@
 
                 public override string Decompile()
                 {
-                    return DecompileNext() + "." + DecompileNext();
+                    var left = GrabNextToken();
+                    var output = left.DecompileAndCatch();
+                    var right = GrabNextToken();
+                    var rightOutput = right.DecompileAndCatch();
+                    TargetHack = right;
+
+                    if ((right is IntConstByteToken || right is IntConstToken) && int.TryParse(rightOutput, out _))
+                    {
+                        if (left is FieldToken lvt && lvt.Object is UObjectProperty uop && uop.Object is UClass c 
+                            && (from uConst in c.Constants 
+                                where uConst.Value == rightOutput 
+                                select uConst).FirstOrDefault() is UConst match)
+                        {
+                            return $"/*maybe?*/{c.Name}.{match.Name}";
+                        }
+
+                        return $"/*const from {output}*/{rightOutput}";
+                    }
+
+                    output += "." + rightOutput;
+                    
+                    return output;
                 }
+
+                public Token TargetHack;
             }
 
             public class ClassContextToken : ContextToken
             {
                 public override string Decompile()
                 {
-                    Decompiler._IsWithinClassContext = true;
+                    Decompiler._IsWithinClassContext = ClassContext.Class;
                     string output = base.Decompile();
-                    Decompiler._IsWithinClassContext = false;
+                    Decompiler._IsWithinClassContext = ClassContext.No;
                     return output;
                 }
             }
