@@ -7,8 +7,29 @@ using UELib;
 using UELib.Core;
 using static System.Console;
 
+public static class Eval
+{
+    public static string PrintData( List<UStruct.UByteCodeDecompiler.Token> decomp )
+    {
+        string str = "";
+        foreach (var token in decomp)
+        {
+            str += ($"@{token.Position}\t{token.GetType().Name}\t");
+            if(token is UStruct.UByteCodeDecompiler.JumpToken jt)
+                str += ($"-> {jt.CodeOffset}\t");
+            else if(token is UStruct.UByteCodeDecompiler.JumpIfNotToken jint)
+                str += ($"-> {jint.CodeOffset}\t");
+            str += "\n";
+        }
+        System.Console.Write(str);
+
+        return str;
+    }
+}
+
 namespace EntryPoint
 {
+
     class Program
     {
         public static string[] filters => new string[]
@@ -168,7 +189,7 @@ namespace EntryPoint
 
         static void Main(string[] args)
         {
-            goto REAL;
+            //goto REAL;
             UnrealConfig.SuppressComments = false;
             var nnn = new NativesTablePackage();
             nnn.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
@@ -176,10 +197,12 @@ namespace EntryPoint
             pacpapcpapc.NTLPackage = nnn;
             pacpapcpapc.InitializePackage();
             var stuff = pacpapcpapc.Objects.FirstOrDefault(x => x is UClass && x.Name == "UTUnrealEdEngine");
-            var v = stuff.Decompile();
-            var tokens = (from x in (stuff as UClass).Functions select (x.Name, x.ByteCodeManager.DeserializedTokens)).ToArray();
-            
-            
+            while (true)
+            {
+                var v = stuff.Decompile();
+                var tokens = (from x in (stuff as UClass).Functions select (x.Name, x.ByteCodeManager.DeserializedTokens)).ToArray();
+                System.Diagnostics.Debugger.Break();
+            }
             return;
             {
             }

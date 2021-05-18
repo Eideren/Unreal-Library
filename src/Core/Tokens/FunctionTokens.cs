@@ -145,52 +145,66 @@ namespace UELib.Core
                 protected string DecompileOperator( string operatorName )
                 {
                     string output;
-                    if (operatorName == "$")
-                        operatorName = "+"; // string concat
-                    if (operatorName == "@")
-                        operatorName = "+ \" \" +"; // spaced string concat
                     
                     var left = GrabNextToken();
                     var rLeft = PrecedenceToken(left);
                     var right = GrabNextToken();
                     var rRight = PrecedenceToken(right);
+                    DecompileNext(); // )
 
                     var target = left.TryGetAssociatedFieldToken();
                     var src = right.TryGetAssociatedFieldToken();
-                    if (operatorName == "*=" && target.GetFriendlyType() == "int" && (right is FloatConstToken || src.GetFriendlyType() == "float"))
+
+                    operatorName = operatorName switch
                     {
-                        output = $"{rLeft} = /*initially 'intX *= floatY' */IntFloat_Mult({rLeft}, {rRight})";
+                        "$" => "+", // string concat
+                        "$=" => "+=", // string concat
+                        "@" => "+ \" \" +", // spaced string concat
+                        "@=" => "+= \" \" +", // spaced string concat
+                        "~=" => "ApproximatelyEqual",
+                        "**" => "Exponentiation",
+                        "<<" => "/*<<*/ShiftL",
+                        ">>" => "/*>>*/ShiftR",
+                        "Percent_IntInt" => "%",
+                        _ => operatorName
+                    };
+
+                    bool asFunction = true;
+                    for (int i = 0; i < operatorName.Length; i++)
+                    {
+                        // Skip comments
+                        if (operatorName[i] == '/' && i + 1 < operatorName.Length && operatorName[i + 1] == '*')
+                        {
+                            for (i += 2; i < operatorName.Length; i++)
+                            {
+                                if (operatorName[i] == '*' && i + 1 < operatorName.Length && operatorName[i] == '/')
+                                {
+                                    i += 2;
+                                    break;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            var c = operatorName[i];
+                            if (c == '_' || char.IsLetter(c))
+                                continue;
+                            asFunction = false;
+                        }
                     }
-                    else if (operatorName == "Dot" 
-                             || operatorName == "Cross" 
-                             || operatorName == "**" 
-                             || operatorName == "<<" 
-                             || operatorName == ">>" 
-                             || operatorName == "EqualEqual_InterfaceInterface"
-                             || operatorName == "NotEqual_InterfaceInterface"
-                             || operatorName == "~=")
+                    
+                    if (operatorName == "*=" && target?.GetFriendlyType() == "int" && (right is FloatConstToken || src?.GetFriendlyType() == "float"))
                     {
-                        if (operatorName == "**")
-                            operatorName = "Exponentiation";
-                        else if (operatorName == "<<")
-                            operatorName = "/*<<*/TransformL";
-                        else if (operatorName == ">>")
-                            operatorName = "/*>>*/TransformR";
-                        else if (operatorName == "~=")
-                            operatorName = "ApproximatelyEqual";
-                        output = $"{operatorName}({rLeft}, {rRight})"; 
+                        return $"{rLeft} = /*initially 'intX *= floatY' */IntFloat_Mult({rLeft}, {rRight})";
+                    }
+                    else if (asFunction)
+                    {
+                        return $"{operatorName}({rLeft}, {rRight})"; 
                     }
                     else
                     {
-                        output = String.Format( "{0} {1} {2}",
-                            rLeft,
-                            operatorName,
-                            rRight
-                        );
+                        return $"{rLeft} {operatorName} {rRight}";
                     }
-
-                    DecompileNext(); // )
-                    return output;
                 }
 
                 protected string DecompilePostOperator( string operatorName )

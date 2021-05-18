@@ -371,6 +371,8 @@ namespace UELib.Core
 
             if (HasFunctionFlag(Flags.FunctionFlags.Native))
             {
+                if(this.Name.Contains("FinishRotation"))
+                    System.Diagnostics.Debugger.Break();
                 code += "\r\n" + UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
                 forceDefaultOut = true;
                 forceReturn = true;
