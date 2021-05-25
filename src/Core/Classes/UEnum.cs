@@ -28,5 +28,21 @@ namespace UELib.Core
             }
         }
         #endregion
+
+        public string ParseAsEnum(string str)
+        {
+            if (int.TryParse(str, out int index))
+            {
+                return ParseAsEnum(index);                
+            }
+            return $"(({GetFriendlyType()}){str})";
+        }
+
+        public string ParseAsEnum(int index, bool includeIndexComment = true)
+        {
+            if (index < Names.Count)
+                return $"{GetFriendlyType()}.{Names[index]}{(includeIndexComment ? $"/*{index}*/" : "" )}";
+            return $"/*val out of enum range*/(({GetFriendlyType()}){index})"; 
+        }
     }
 }

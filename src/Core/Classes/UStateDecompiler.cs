@@ -24,8 +24,12 @@ namespace UELib.Core
         public override string Decompile()
         {
             string content = FormatFunctionsOuter() + "\r\n" + FormatHeader() + UnrealConfig.PrintBeginBracket();
+
             UDecompilingState.AddTabs( 1 );
 
+            if( UnrealConfig.StubMode == false )
+            {
+                
                 var locals = FormatLocals();
                 if( locals != String.Empty )
                 {
@@ -34,6 +38,12 @@ namespace UELib.Core
 
                 content += FormatFunctionScope();
                 
+            }
+            else
+            {
+                content += $"\r\n{UDecompilingState.Tabs}throw new System.InvalidOperationException(\"Stub state\");";
+            }
+
             UDecompilingState.RemoveTabs( 1 );
             content += UnrealConfig.PrintEndBracket();
             return content;
@@ -81,6 +91,20 @@ namespace UELib.Core
             string output = String.Empty;
             foreach( var scriptFunction in formatFunctions )
             {
+                if( scriptFunction.HasFunctionFlag( Flags.FunctionFlags.Delegate ) 
+                    && this is UClass c
+                    && c.IsClassInterface() == false
+                    && c.ImplementedInterfaces != null
+                    && (from i in c.ImplementedInterfaces
+                        where Package.GetIndexTable( i ).Object is UClass
+                        from f in (Package.GetIndexTable( i ).Object as UClass).Functions
+                        where f.Name == scriptFunction.Name
+                        select f).FirstOrDefault() != null)
+                {
+                    // Ignore delegates declared by interfaces
+                    continue;
+                }
+                
                 try
                 {
                     output += "\r\n" + UDecompilingState.Tabs + scriptFunction.Decompile() + "\r\n";

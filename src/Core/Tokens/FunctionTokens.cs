@@ -20,6 +20,7 @@ namespace UELib.Core
             public abstract class FunctionToken : Token
             {
                 private static int stacking;
+                public Token ContextHack;
                 public UFunction TryFindFunction(int paramCount = -1)
                 {
                     int thisTokenIndex = -1;
@@ -66,7 +67,28 @@ namespace UELib.Core
                     }
                     
                     var fName = FunctionName;
-                    
+
+                    if (ContextHack?.TryGetAssociatedFieldToken() is UField contextField)
+                    {
+                        if (contextField is UObjectProperty uprop && uprop.Object is UState sUStruct)
+                        {
+                            for (var o = sUStruct; o != null; o = o.Super as UState)
+                            {
+                                foreach (var f in sUStruct.Functions)
+                                {
+                                    if (f.Name != fName)
+                                        continue;
+                                    if (f.Params.Count - (f.ReturnProperty == null ? 0 : 1) == paramCount)
+                                        return f;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            System.Diagnostics.Debugger.Break();
+                        }
+                    }
+
                     foreach (var f in (
                         from p in UnrealConfig.SharedPackages
                         from o in p.Exports
@@ -155,19 +177,19 @@ namespace UELib.Core
                     var target = left.TryGetAssociatedFieldToken();
                     var src = right.TryGetAssociatedFieldToken();
 
-                    operatorName = operatorName switch
+                    switch (operatorName)
                     {
-                        "$" => "+", // string concat
-                        "$=" => "+=", // string concat
-                        "@" => "+ \" \" +", // spaced string concat
-                        "@=" => "+= \" \" +", // spaced string concat
-                        "~=" => "ApproximatelyEqual",
-                        "**" => "Exponentiation",
-                        "<<" => "/*<<*/ShiftL",
-                        ">>" => "/*>>*/ShiftR",
-                        "Percent_IntInt" => "%",
-                        _ => operatorName
-                    };
+                        case "$": operatorName = "+"; break; // string concat
+                        case "$=": operatorName = "+="; break; // string concat
+                        case "@": operatorName = "+ \" \" +"; break; // spaced string concat
+                        case "@=": operatorName = "+= \" \" +"; break; // spaced string concat
+                        case "~=": operatorName = "ApproximatelyEqual"; break;
+                        case "**": operatorName = "Exponentiation"; break;
+                        case "^^": operatorName = "^"; break; // XOR
+                        case "<<": operatorName = "/*<<*/ShiftL"; break;
+                        case ">>": operatorName = "/*>>*/ShiftR"; break;
+                        case "Percent_IntInt": operatorName = "%"; break;
+                    }
 
                     bool asFunction = true;
                     for (int i = 0; i < operatorName.Length; i++)
@@ -193,7 +215,7 @@ namespace UELib.Core
                         }
                     }
                     
-                    if (operatorName == "*=" && target?.GetFriendlyType() == "int" && (right is FloatConstToken || src?.GetFriendlyType() == "float"))
+                    if (operatorName == "*=" && target?.GetFriendlyType() == "int" && (right is FloatConstToken || src?.GetFriendlyType() == "float" || (right is FunctionToken ft && ft.TryFindFunction()?.ReturnProperty?.GetFriendlyType() == "float")))
                     {
                         return $"{rLeft} = /*initially 'intX *= floatY' */IntFloat_Mult({rLeft}, {rRight})";
                     }
@@ -300,17 +322,7 @@ namespace UELib.Core
                             }
                             if ((p as UByteProperty)?.EnumObject is UEnum enumObject)
                             {
-                                if (int.TryParse(v, out var index))
-                                {
-                                    if (index < enumObject.Names.Count && index >= 0)
-                                        v = $"{enumObject.GetFriendlyType()}.{enumObject.Names[index]}/*{v}*/";
-                                    else
-                                        v = $"/*val out of enum range*/{v}";
-                                }
-                                else
-                                {
-                                    v = $"({enumObject.GetFriendlyType()}){v}";
-                                }
+                                v = enumObject.ParseAsEnum(v);
                             }
 
                             if (p is UByteProperty bProp && /*Not for out/refs params*/(bProp.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) == 0 && bProp.EnumObject == null && int.TryParse(v, out _) == false)

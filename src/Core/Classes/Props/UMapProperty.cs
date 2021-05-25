@@ -34,7 +34,9 @@ namespace UELib.Core
         /// <inheritdoc/>
         public override string GetFriendlyType()
         {
-            return "map<" + _Key + ", " + _Value + ">";
+            if( _Key == 0 && _Value == 0 )
+                return "/*map<0,0>*/map<object, object>";
+            return "map<" + GetIndexObject( _Key ).GetFriendlyType() + ", " + GetIndexObject( _Value ).GetFriendlyType() + ">";
         }
     }
 }

@@ -58,6 +58,8 @@ namespace UELib.Core
                     var left = GrabNextToken();
                     var output = left.DecompileAndCatch();
                     var right = GrabNextToken();
+                    if (right is FunctionToken ft)
+                        ft.ContextHack = left;
                     var rightOutput = right.DecompileAndCatch();
                     TargetHack = right;
 

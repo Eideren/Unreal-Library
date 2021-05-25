@@ -48,7 +48,7 @@ namespace UELib.Core
 
         public IList<UStruct>   Structs{ get; private set; }
 
-        public List<UProperty>  Variables{ get; private set; }
+        public List<UProperty> Variables{ get; private set; } = new List<UProperty>();
 
         public List<UProperty>  Locals{ get; private set; }
         #endregion
@@ -269,6 +269,15 @@ namespace UELib.Core
         public bool IsPureStruct()
         {
             return IsClassType( "Struct" ) || IsClassType( "ScriptStruct" );
+        }
+        
+        public IEnumerable<UStruct> EnumerateInheritance()
+        {
+            yield return this;
+            for( var s = this.Super as UStruct; s != null; s = s.Super as UStruct )
+                yield return s;
+            for( var c = this.Outer as UClass; c != null; c = c.Super as UClass )
+                yield return c;
         }
         #endregion
     }

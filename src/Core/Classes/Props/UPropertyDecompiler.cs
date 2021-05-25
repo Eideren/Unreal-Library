@@ -35,18 +35,20 @@ namespace UELib.Core
         public override string Decompile()
         {
             string postfix = "";
-            if (this.Outer.GetType() == typeof(UScriptStruct) && IsArray)
+            if (IsArray)
             {
                 var type = GetFriendlyType();
-                if (ArrayEnum == null && type != "int" && type != "float" && type != "byte")
-                {
-                    return $"{FormatFlags()}FixedArray<{type}, (\r\n{UDecompilingState.Tabs}\t{string.Join($",\r\n{UDecompilingState.Tabs}\t", Enumerable.Repeat(type, ArrayDim))})>/*{ArrayDim}*/ {Name}{DecompileMeta()}";
-                }
+                /*if (this.Outer.GetType() != typeof(UScriptStruct) || (type != "int" && type != "float" && type != "byte"))
+                {*/
+                    string arraySizeDecl = ArrayEnum != null 
+                        ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
+                        : ArrayDim.ToString( CultureInfo.InvariantCulture );
+                    
+                    return $"{FormatFlags()}StaticArray<{string.Join(", ", Enumerable.Repeat(type, ArrayDim))}>/*[{arraySizeDecl}]*/ {Name}{DecompileMeta()}";
+                /*}
 
-                return $"fixed {FormatFlags()}{GetFriendlyType()} {Name}{FormatSize()}{DecompileMeta()}";
+                return $"ESpan<{GetFriendlyType()}> {FormatFlags()} {Name}{DecompileMeta()}{{ get{{ fixed({GetFriendlyType()}* f = _bField_{Name}){{ return new ESpan<{GetFriendlyType()}>(f, {FormatSize(false)}); }} }} set{{ fixed({GetFriendlyType()}* f = _bField_{Name}){{ value.CopyOverPtr( f, {FormatSize(false)}); }} }} }}\r\n{UDecompilingState.Tabs}fixed {GetFriendlyType()} _bField_{Name}{FormatSize()}";*/
             }
-            else if (IsArray)
-                postfix = " = new " + GetFriendlyType() + FormatSize();
             if ((PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm) != 0)
                 postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";
             
@@ -55,7 +57,7 @@ namespace UELib.Core
                    + DecompileMeta();
         }
 
-        private string FormatSize()
+        private string FormatSize(bool withBracket = true)
         {
             if( !IsArray )
             {
@@ -63,9 +65,9 @@ namespace UELib.Core
             }
 
             string arraySizeDecl = ArrayEnum != null 
-                ? ArrayEnum.GetFriendlyType() 
+                ? $"(int){ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1 )}" 
                 : ArrayDim.ToString( CultureInfo.InvariantCulture );
-            return $"[{arraySizeDecl}]";
+            return withBracket ? $"[{arraySizeDecl}]" : arraySizeDecl;
         }
 
         private string FormatIsArray()

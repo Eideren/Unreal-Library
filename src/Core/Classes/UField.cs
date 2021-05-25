@@ -9,7 +9,7 @@ namespace UELib.Core
     public partial class UField : UObject
     {
         #region Serialized Members
-        public UField Super{ get; private set; }
+        public UField Super{ get; set; }
         public UField NextField{ get; private set; }
         #endregion
 

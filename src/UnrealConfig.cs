@@ -39,5 +39,12 @@ namespace UELib
         {
             return value.ToString( "0.0000000000" ).TrimEnd( '0' ).Replace( ',', '.' ) + '0' + 'f';
         }
+
+
+
+        public static string OutputWarningException(this Exception e, string introMessage)
+        {
+            return $"\r\n{UDecompilingState.Tabs}#warning {introMessage}\r\n{UDecompilingState.Tabs}/*{e.ToString().Replace("\n", $"\n{UDecompilingState.Tabs}")} */";
+        }
     }
 }

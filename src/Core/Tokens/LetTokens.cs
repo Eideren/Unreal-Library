@@ -43,18 +43,7 @@ namespace UELib.Core
                     {
                         if (prop.EnumObject != null)
                         {
-                            if (int.TryParse(decompiledNext, out var index))
-                            {
-                                var enumObject = prop.EnumObject;
-                                if (index < enumObject.Names.Count)
-                                    decompiledNext = $"{enumObject.GetFriendlyType()}.{enumObject.Names[index]}/*{decompiledNext}*/";
-                                else
-                                    decompiledNext = $"/*val out of enum range*/{decompiledNext}";
-                            }
-                            else
-                            {
-                                decompiledNext = $"({prop.EnumObject.GetFriendlyType()}){decompiledNext}";
-                            }
+                            decompiledNext = prop.EnumObject.ParseAsEnum(decompiledNext);
                         }
                         else
                         {

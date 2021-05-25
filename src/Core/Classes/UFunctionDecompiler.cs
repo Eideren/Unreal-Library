@@ -262,17 +262,22 @@ namespace UELib.Core
             if (HasFunctionFlag(Flags.FunctionFlags.Delegate) || IsStateFunction || HasFunctionFlag(Flags.FunctionFlags.Static) || (this.Outer as UClass).IsClassInterface())
                 overridingType = "";
 
-            var returnType = ReturnType();
+
+
+            var signatureSource = this;
+            var returnType = signatureSource.ReturnType();
 
             if(OverridenByState && Outer is UClass /*Ignore for in-state defined functions*/)
             {
                 if(Super == null)
-                    output += $"public delegate {returnType} {Name}_del({FormatParms()});\r\n";
+                    output += $"public delegate {returnType} {Name}_del({signatureSource.FormatParms()});\r\n";
                 output += $"public {overridingType} {Name}_del {Name} {{ get => bfield_{Name} ?? {NameOfSpecificFunctionImplementation}; set => bfield_{FriendlyName} = value; }} {FriendlyName}_del bfield_{FriendlyName};\r\n";
                 output += $"public {overridingType} {Name}_del global_{Name} => {NameOfSpecificFunctionImplementation};\r\n";
                 overridingType = "";
             }
-            output += $"{(Outer is UClass ? "public" : "protected" )} {overridingType} {FormatFlags()}{returnType} {NameOfSpecificFunctionImplementation}({FormatParms()})";
+
+            overridingType = string.IsNullOrEmpty( overridingType ) ? "" : overridingType + " ";
+            output += $"{(Outer is UClass ? "public" : "protected" )} {overridingType}{FormatFlags()}{returnType} {NameOfSpecificFunctionImplementation}({signatureSource.FormatParms()})";
 
             if( HasFunctionFlag( Flags.FunctionFlags.Const ) )
             {
@@ -345,25 +350,25 @@ namespace UELib.Core
             bool forceDefaultOut = UnrealConfig.StubMode;
             if (UnrealConfig.StubMode && (this.Outer as UClass)?.IsClassInterface() == true)
                 return ";";
+
             
-            UDecompilingState.AddTabs( 1 );
+
             string locals = UnrealConfig.StubMode ? "" : FormatLocals();
             if( locals != String.Empty )
             {
                 locals += "\r\n";
             }
             string code;
-            try
+            using( UDecompilingState.TabScope() )
             {
-                code = UnrealConfig.StubMode ? "" : DecompileScript();
-            }
-            catch( Exception e )
-            {
-                code = e.Message;
-            }
-            finally
-            {
-                UDecompilingState.RemoveTabs( 1 );
+                try
+                {
+                    code = UnrealConfig.StubMode ? "" : DecompileScript();
+                }
+                catch( Exception e )
+                {
+                    code = e.Message;
+                }
             }
 
             if (HasFunctionFlag(Flags.FunctionFlags.Delegate) && string.IsNullOrEmpty(code))
@@ -371,9 +376,7 @@ namespace UELib.Core
 
             if (HasFunctionFlag(Flags.FunctionFlags.Native))
             {
-                if(this.Name.Contains("FinishRotation"))
-                    System.Diagnostics.Debugger.Break();
-                code += "\r\n" + UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
+                code += UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
                 forceDefaultOut = true;
                 forceReturn = true;
             }
@@ -432,6 +435,8 @@ namespace UELib.Core
             {
                 if (HasFunctionFlag(Flags.FunctionFlags.Iterator))
                     code += "\r\n\t" + UDecompilingState.Tabs + "yield return default;";
+                if (HasFunctionFlag(Flags.FunctionFlags.Latent))
+                    code += "\r\n\t" + UDecompilingState.Tabs + "return default;";
                 if (ReturnProperty != null)
                     code += "\r\n\t" + UDecompilingState.Tabs + "return default;";
             }

@@ -132,11 +132,11 @@ namespace EntryPoint
             foreach (var obj in o.Objects)
                 yield return obj;
             
-            foreach (var obj in o.Exports)
+            /*foreach (var obj in o.Exports)
                 yield return obj.Object;
             
             foreach (var obj in o.Imports)
-                yield return obj.Object;
+                yield return obj.Object;*/
         }
 
 
@@ -156,40 +156,23 @@ namespace EntryPoint
             }
         }
 
-
-        static void FixImports(UnrealPackage package, IEnumerable<UnrealPackage> oldPackages)
+        static IEnumerable<string> RepeatEnum( int count, System.Func<int, string> r )
         {
-            foreach (var tableItem in package.Imports)
+            for( int i = 0; i < count; i++ )
             {
-                UObject result = null;
-                if (tableItem.ClassName == "Package")
-                    continue;
-
-                foreach (var o in 
-                    from p in oldPackages
-                    from o in p.Exports
-                    where (o.Object is UnknownObject) == false
-                          && InheritanceMatch(tableItem, o)
-                    select o)
-                {
-                    if (result != null)
-                        Debugger.Break();
-                    else
-                        result = o.Object;
-                    
-                    if (tableItem.PackageName == o.Object.Package.PackageName)
-                        break;
-                }
-
-                if (result != null)
-                    tableItem.Object = result;
+                yield return r(i);
             }
         }
-
-
+        
+        static string Repeat(int count, System.Func<int, string> r, string joint = ", ")
+        {
+            return string.Join( joint, RepeatEnum( count, r ) );
+        }
+        
         static void Main(string[] args)
         {
-            //goto REAL;
+            goto REAL;
+            
             UnrealConfig.SuppressComments = false;
             var nnn = new NativesTablePackage();
             nnn.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
@@ -231,16 +214,7 @@ namespace EntryPoint
                 @"D:\MirrorsEdge\Tools\unpacked\TdTuContent.u",
                 @"D:\MirrorsEdge\Tools\unpacked\TdEditor.u",
             };
-            
-            
-            
-            
-            
-            UnrealConfig.StubMode = false;
-            var destFolder = @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Converted";
-            if(UnrealConfig.StubMode)
-                destFolder = @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Stubs";
-            
+
             var packages = new List<(UnrealPackage package, string path)>(); // List to keep the right order
             var NTL = new NativesTablePackage();
             NTL.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
@@ -259,12 +233,57 @@ namespace EntryPoint
                 package.InitializePackage(UnrealPackage.InitFlags.RegisterClasses );
                 package.InitializeExportObjects();
             }
-            foreach (var (package, path) in packages)
-            {
-                WriteLine($"\t\t{package.PackageName}");
-                FixImports(package, from p in packages select p.package);
-            }
 
+
+            {
+                var Url = new Dictionary<string, Dictionary<string, List<UExportTableItem>>>();
+                foreach( var o in
+                    from p in packages
+                    from o in p.package.Exports
+                    where ( o.Object is UnknownObject ) == false
+                    select o )
+                {
+                    if( Url.TryGetValue( o.ClassName, out var objNameDictionary ) == false )
+                        Url.Add( o.ClassName, objNameDictionary = new Dictionary<string, List<UExportTableItem>>() );
+                    if( objNameDictionary.TryGetValue( o.ObjectName.Name, out var objNameList ) == false )
+                        objNameDictionary.Add( o.ObjectName.Name, objNameList = new List<UExportTableItem>() );
+                    objNameList.Add( o );
+                }
+
+                foreach (var (package, path) in packages)
+                {
+                    WriteLine($"\t\t{package.PackageName}");
+                    foreach (var tableItem in package.Imports)
+                    {
+                        UObject result = null;
+                        if (tableItem.ClassName == "Package")
+                            continue;
+
+                        if( Url.TryGetValue( tableItem.ClassName, out var objNameDictionary ) == false 
+                            || objNameDictionary.TryGetValue( tableItem.ObjectName.Name, out var objNameList ) == false )
+                            continue;
+
+                        foreach( var o in objNameList )
+                        {
+                            if( InheritanceMatch( tableItem, o ) )
+                            {
+                                if (result != null)
+                                    Debugger.Break();
+                                else
+                                    result = o.Object;
+                    
+                                if (tableItem.PackageName == o.Object.Package.PackageName)
+                                    break;
+                            }
+                        }
+
+                        if (result != null)
+                            tableItem.Object = result;
+                    }
+                }
+
+            }
+            
             WriteLine("\tInitializing packages");
             foreach (var (package, path) in packages)
             {
@@ -284,6 +303,28 @@ namespace EntryPoint
                 from function in (o as UState).Functions
                 select function)
             {
+                if (refFunction.Super == null)
+                {
+                    foreach (var f in 
+                        from c in EnumerateInheritance(refFunction.Outer.Outer as UClass) 
+                        from f in c.Functions 
+                        where f.Name == refFunction.Name 
+                              && f.Params.Count == refFunction.Params.Count 
+                              && f.ReturnProperty?.GetFriendlyType() == refFunction.ReturnProperty?.GetFriendlyType()
+                              select f)
+                    {
+                        for (int i = f.Params.Count - 1; i >= 0; i--)
+                        {
+                            if (f.Params[i].GetFriendlyType() != refFunction.Params[i].GetFriendlyType())
+                                goto NEXT_FUNC;
+                        }
+
+                        refFunction.Super = f;
+                        
+                        NEXT_FUNC:{ }
+                    }
+                }
+
                 foreach (var f in EnumerateInheritance(refFunction))
                 {
                     if (f.SelfOverridenByState)
@@ -303,8 +344,10 @@ namespace EntryPoint
                     }
                 }
             }
-            
+
+            Dictionary<string, UClass> validClasses = new Dictionary<string, UClass>();
             List<UClass> selectedClasses = new List<UClass>();
+            List<UClass> stubClasses = new List<UClass>();
             foreach (var c in from p in packages
                 from o in p.package.Objects
                 where o is UClass c 
@@ -312,22 +355,35 @@ namespace EntryPoint
                       && (c.Outer == null || (c.Outer is UPackage p2 && p2.Name == c.Package.PackageName))
                 select o as UClass)
             {
-                bool add = Filtering(c);
-                if (UnrealConfig.StubMode)
-                    add = !add;
-                if (add)
+                validClasses.TryAdd( c.Name, c );
+                var list = Filtering( c ) ? selectedClasses : stubClasses;
+                
+                var match = (from x in list where x.Name == c.Name select x).FirstOrDefault();
+                if (ReferenceEquals(match, c))
+                    continue; // Already included
+                    
+                if(match != null)
+                    System.Diagnostics.Debugger.Break(); // Duplicate different class !?
+                    
+                list.Add(c);
+            }
+
+            foreach( var c in from p in packages
+                from o in p.package.Objects
+                where o is UClass || o is UObjectProperty
+                select o as UField )
+            {
+                if( c is UObjectProperty )
                 {
-                    var match = (from x in selectedClasses where x.Name == c.Name select x).FirstOrDefault();
-                    if (ReferenceEquals(match, c))
-                        continue; // Already included
-                    
-                    if(match != null)
-                        System.Diagnostics.Debugger.Break(); // Duplicate different class !?
-                    
-                    selectedClasses.Add(c); 
+                    continue;
+                }
+
+                if( validClasses.TryGetValue( c.Name, out var refClass ) )
+                {
+                    c.Super = refClass.Super;
                 }
             }
-            
+
             bool Filtering(UClass c)
             {
                 string n = c.Name;
@@ -352,16 +408,27 @@ namespace EntryPoint
             
             while (true)
             {
-                UnrealConfig.SuppressComments = false;
+                UnrealConfig.SuppressComments = true;
 
-                foreach (UClass c in selectedClasses)
+                
+                UnrealConfig.StubMode = false;
+                foreach( UClass c in selectedClasses )
+                    Output( @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Converted", c, packageName );
+
+                WriteLine("-- Starting stubs --");
+                
+                UnrealConfig.StubMode = true;
+                foreach( UClass c in stubClasses )
+                    Output( @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Stubs", c, packageName );
+                
+                static void Output(string destFolder, UClass c, HashSet<string> packageName)
                 {
                     var outPath = @$"{destFolder}\{c.Package.PackageName}\{c.Name}.cs";
 
                     if (File.Exists(outPath) && (from x in File.ReadLines(outPath) where x.Contains("NO OVERWRITE") || x.Contains("NO OVERRIDE") select x).FirstOrDefault() != null)
                     {
                         WriteLine("SKIP\t"+c.Name);
-                        continue;
+                        return;
                     }
 
                     WriteLine("\t"+c.Name);

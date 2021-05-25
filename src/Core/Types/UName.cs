@@ -20,11 +20,26 @@ namespace UELib
         private int             _Number;
 
         public string           Name => _NameItem.Name;
-        private string          Text => _Number > Numeric ? _NameItem.Name + "_" + _Number : _NameItem.Name;
+
+
+        public string Text
+        {
+            get
+            {
+                if( _cache == null || _cache.Value.i != _Number || _cache.Value.name != _NameItem.Name )
+                {
+                    _cache = ( _Number, _NameItem.Name, _Number > Numeric ? $"{_NameItem.Name}_{_Number}" : _NameItem.Name );
+                }
+
+                return _cache.Value.output;
+            }
+        }
 
         private int             Index => _NameItem.Index;
 
         public int              Length => Text.Length;
+
+        (int i, string name, string output)? _cache;
 
         public UName( IUnrealStream stream )
         {
@@ -45,10 +60,17 @@ namespace UELib
         public void Deserialize( IUnrealStream stream )
         {
             int index = stream.ReadNameIndex( out _Number );
-            _NameItem = stream.Package.Names[index];
+            try
+            {
+                _NameItem = stream.Package.Names[ index ];
+            }
+            catch
+            {
+                throw;
+            }
 
             Debug.Assert( _NameItem != null, "_NameItem cannot be null! " + index );
-            Debug.Assert( _Number >= -1, "Invalid _Number value! " + _Number );
+            Debug.Assert( _Number >= - 1, "Invalid _Number value! " + _Number );
         }
 
         public void Serialize( IUnrealStream stream )

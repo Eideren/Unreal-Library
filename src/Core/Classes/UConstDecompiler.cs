@@ -24,10 +24,16 @@ namespace UELib.Core
                 type = "int";
             else if (long.TryParse(value, out _))
                 type = "long";
-            else if (value.EndsWith('f') || float.TryParse(value, out _))
+            else if (value.EndsWith('f') || double.TryParse(value, out _))
                 type = "double";
 
-            return "public const " + type + " " + Name + " = " + value + ";";
+            if( value.EndsWith( ".f" ) )
+            {
+                value = value.Remove( value.Length - 2, 1 );
+            }
+
+
+            return $"public const {type} {Name} = {value};";
         }
     }
 }

@@ -53,15 +53,8 @@ namespace UELib.Core
             if (string.IsNullOrWhiteSpace(flags) == false)
                 flags = $"/*{flags}*/";
 
-            var unsafeCtx = "";
-            foreach (var property in Variables)
-            {
-                if (property.ArrayDim > 1)
-                    unsafeCtx = " unsafe";
-            }
-
             // Note: C# doesn't support struct-struct inheritance, commenting out extends part, inheritance is replaced by copy pasting parent content into it
-            var output = $"public{unsafeCtx} struct {flags}{Name}" + (Super != null ? $"// {FormatExtends()} {Super.Name}" : String.Empty); 
+            var output = $"public partial struct {flags}{Name}" + (Super != null ? $"// {FormatExtends()} {Super.Name}" : String.Empty); 
             var metaData = DecompileMeta();
             if( metaData != String.Empty )
             {
@@ -207,9 +200,9 @@ namespace UELib.Core
                 {
                     output += "\r\n" + scriptStruct.Decompile() + "\r\n";
                 }
-                catch
+                catch(Exception e)
                 {
-                    output += String.Format( "\r\nFailed at decompiling struct: {0}", scriptStruct.Name );
+                    output += e.OutputWarningException( $"Failed at decompiling struct: {scriptStruct.Name}" );
                 }
             }
             return output;
@@ -256,15 +249,30 @@ namespace UELib.Core
                         output += String.Format( "/* INDEX:{0} */", property.CategoryIndex );
                     }
 
-                    output += " " + property.Decompile() + ";";
+                    output += " " + property.Decompile();
+                    
+                    if( this is UClass c2 && c2.IsClassInterface() )
+                    {
+                        output += "{ get; }";
+                    }
+                    else if( this is UClass c 
+                             && c.ImplementedInterfaces != null
+                             && (from i in c.ImplementedInterfaces 
+                                 where (Package.GetIndexTable( i ).Object as UClass)?.Variables != null
+                                 from v in (Package.GetIndexTable( i ).Object as UClass).Variables 
+                                 where v.Name == property.Name 
+                                 select v).FirstOrDefault() is UProperty p )
+                    {
+                        output += "{ get; set; }";
+                    }
+                    else
+                    {
+                        output += ";";
+                    }
                 }
                 catch( Exception e )
                 {
-                    output += String.Format
-                    (
-                        " /* Property:{0} threw the following exception:{1} */",
-                        property.Name, e.Message
-                    );
+                    output += e.OutputWarningException( $"Property:{property.Name} threw the following exception:" );
                 }
             }
             return output + "\r\n";
@@ -304,11 +312,7 @@ namespace UELib.Core
             }
             catch( Exception e )
             {
-                innerOutput = String.Format
-                (
-                    "{0}// {1} occurred while decompiling properties!\r\n",
-                     UDecompilingState.Tabs, e.GetType().Name
-                );
+                innerOutput = e.OutputWarningException( $"// {e.GetType().Name} occurred while decompiling properties!" );
             }
             finally
             {

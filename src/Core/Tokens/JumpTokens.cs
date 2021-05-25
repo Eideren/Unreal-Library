@@ -27,6 +27,11 @@ namespace UELib.Core
                     #endregion
 
                     string returnValue = DecompileNext();
+                    if (returnValue.Length != 0 && ((Decompiler._Container as UFunction)?.ReturnProperty as UByteProperty)?.EnumObject is UEnum enumObject)
+                    {
+                        returnValue = enumObject.ParseAsEnum(returnValue);
+                    }
+
                     Decompiler._CanAddSemicolon = true;
                     return "return" + (returnValue.Length != 0 ? " " + returnValue : String.Empty);
                 }
@@ -551,17 +556,25 @@ namespace UELib.Core
                     var i = Decompiler.DeserializedTokens.IndexOf(this);
                     var previous = Decompiler.DeserializedTokens[i - 1];
 
-                    // Find previous case token and add an explicit fallthrough as C# doesn't support implicit fallthrough from non-empty cases 
-                    if ((previous is NothingToken/*return nothing*/ || previous is JumpToken) == false)
+                    bool previousCaseHasJumpToHere = false;
+                    bool previousCaseIsEmpty = true;
+                    for (int j = i-1; j > 0; j--)
                     {
-                        for (int j = i-1; j > 0; j--)
+                        if (Decompiler.DeserializedTokens[j] is CaseToken ct && ct.CodeOffset == Position && ReferenceEquals(ct.OwnerHack, OwnerHack))
                         {
-                            if (Decompiler.DeserializedTokens[j] is CaseToken ct && ct.CodeOffset == Position && ReferenceEquals(ct.OwnerHack, OwnerHack))
-                            {
-                                if(ct.Position + ct.Size != Position) // the previous case is not an empty fallthrough
-                                    output = $"\tgoto {output.Replace(':', ';')}// UnrealScript fallthrough\r\n{UDecompilingState.Tabs}{output}";
-                            }
+                            previousCaseIsEmpty = ct.Position + ct.Size == Position;
+                            break;
                         }
+                        if (Decompiler.DeserializedTokens[j] is JumpIfNotToken jint && jint.CodeOffset == Position)
+                        {
+                            previousCaseHasJumpToHere = true;
+                        }
+                    }
+
+                    // Find previous case token and add an explicit fallthrough as C# doesn't support implicit fallthrough from non-empty cases 
+                    if (previousCaseIsEmpty == false && (previousCaseHasJumpToHere || (previous is NothingToken/*return nothing*/ || previous is JumpToken) == false))
+                    {
+                        output = $"\tgoto {output.Replace(':', ';')}// UnrealScript fallthrough\r\n{UDecompilingState.Tabs}{output}";
                     }
 
                     Decompiler._CanAddSemicolon = false;

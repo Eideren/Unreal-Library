@@ -181,7 +181,7 @@ namespace UELib.Core
             }
 
             string rules = FormatFlags().Replace( "\t", UnrealConfig.Indention );
-            return output + rules + "{";
+            return $"{output}{rules}{{";
         }
 
         private string FormatNameGroup( string groupName, IList<int> enumerableList )

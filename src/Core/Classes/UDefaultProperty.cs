@@ -364,47 +364,43 @@ namespace UELib.Core
                         {
                             var obj = _Buffer.ReadObject();
                             _Container.Record( "object", obj );
-                            if( obj != null )
-                            {
-                                bool inline = false;
-                                // If true, object is an archetype or subobject.
-                                if( obj.Outer == _Container && (deserializeFlags & DeserializeFlags.WithinStruct) == 0 )
-                                {
-                                    // Unknown objects are only deserialized on demand.
-                                    obj.BeginDeserializing();
-                                    if( obj.Properties != null && obj.Properties.Count > 0 )
-                                    {
-                                        inline = true;
-                                        propertyValue = obj.Decompile();
-
-                                        _TempFlags |= DoNotAppendName;
-                                        if( (deserializeFlags & DeserializeFlags.WithinArray) != 0 )
-                                        {
-                                            _TempFlags |= ReplaceNameMarker;
-                                            propertyValue = "%ARRAYNAME%=" + propertyValue;
-                                        }
-                                        else
-                                        {
-                                            propertyValue = Name + "=" + propertyValue;
-                                        }
-                                    }
-                                }
-
-                                if( !inline )
-                                {
-                                    // =CLASS'Package.Group(s)+.Name'
-                                    if(obj.GetClassName() == "Class")
-                                        propertyValue = $"ClassT<{obj.GetOuterGroup()}>()";
-                                    else
-                                        propertyValue = $"LoadAsset<{obj.GetClassName()}>(\"{obj.GetOuterGroup()}\")";
-                                    propertyValue += String.Format( "/*Ref {0}\'{1}\'*/", obj.GetClassName(), obj.GetOuterGroup() );
-                                }
-                            }
-                            else
+                            if( obj == null )
                             {
                                 // =none
                                 propertyValue = "default";
+                                break;
                             }
+
+                            // If true, object is an archetype or subobject.
+                            if( obj.Outer == _Container && (deserializeFlags & DeserializeFlags.WithinStruct) == 0 )
+                            {
+                                // Unknown objects are only deserialized on demand.
+                                obj.BeginDeserializing();
+                                if( obj.Properties != null && obj.Properties.Count > 0 )
+                                {
+                                    propertyValue = obj.Decompile();
+
+                                    _TempFlags |= DoNotAppendName;
+                                    if( (deserializeFlags & DeserializeFlags.WithinArray) != 0 )
+                                    {
+                                        _TempFlags |= ReplaceNameMarker;
+                                        propertyValue = "%ARRAYNAME%=" + propertyValue;
+                                    }
+                                    else
+                                    {
+                                        propertyValue = $"{Name} = {propertyValue}";
+                                    }
+
+                                    break;
+                                }
+                            }
+                            
+                            // =CLASS'Package.Group(s)+.Name'
+                            if(obj.GetClassName() == "Class")
+                                propertyValue = $"ClassT<{obj.GetOuterGroup()}>()";
+                            else
+                                propertyValue = $"LoadAsset<{obj.GetClassName()}>(\"{obj.GetOuterGroup()}\")";
+                            propertyValue += String.Format( "/*Ref {0}\'{1}\'*/", obj.GetClassName(), obj.GetOuterGroup() );
                             break;
                         }
 
@@ -421,8 +417,17 @@ namespace UELib.Core
                             _TempFlags |= DoNotAppendName;
                             int outerIndex = _Buffer.ReadObjectIndex(); // Where the assigned delegate property exists.
                             var delegateValue = _Buffer.ReadName();
-                            string delegateName = ((string)(Name)).Substring( 2, Name.Length - 12 );
-                            propertyValue = delegateName + "=" + delegateValue;
+                            string delegateName = Name;//((string)(Name)).Substring( 2, Name.Length - 12 );
+
+                            var del = ( 
+                                from p in UnrealConfig.SharedPackages
+                                from e in p.Exports
+                                where e.Object is UDelegateProperty && e.Object.Name == Name
+                                select ( e.Object as UDelegateProperty ).FunctionObject as UFunction ).First();
+
+                            var enumParamNames = string.Join(", ", (from p in del.Params where p != del.ReturnProperty select p.Name)) ;
+                            
+                            propertyValue = $"{delegateName} = ({enumParamNames}) => {delegateValue}({enumParamNames})";
                             break;
                         }
 
@@ -472,7 +477,7 @@ namespace UELib.Core
                             string v1 = DeserializeDefaultPropertyValue( PropertyType.Vector, ref deserializeFlags );
                             string v2 = DeserializeDefaultPropertyValue( PropertyType.Vector, ref deserializeFlags );
 
-                            propertyValue += "v1=(" + v1 + "),v2=(" + v2 + ")";
+                            propertyValue += "v1={" + v1 + "},v2={" + v2 + "}";
                             break;
                         }
 
@@ -536,7 +541,7 @@ namespace UELib.Core
                             string sheerRate = DeserializeDefaultPropertyValue( PropertyType.FloatProperty, ref deserializeFlags );
                             string sheerAxis = DeserializeDefaultPropertyValue( PropertyType.ByteProperty, ref deserializeFlags );
 
-                            propertyValue += "Scale=(" + scale + ")" +
+                            propertyValue += "Scale={" + scale + "}" +
                                 ",SheerRate=" + sheerRate +
                                 ",SheerAxis=" + sheerAxis;
                             break;
@@ -548,8 +553,8 @@ namespace UELib.Core
                             string max = DeserializeDefaultPropertyValue( PropertyType.Vector, ref deserializeFlags );
                             string isValid = DeserializeDefaultPropertyValue( PropertyType.ByteProperty, ref deserializeFlags );
 
-                            propertyValue += "Min=(" + min + ")" +
-                                ",Max=(" + max + ")" +
+                            propertyValue += "Min={" + min + "}" +
+                                ",Max={" + max + "}" +
                                 ",IsValid=" + isValid;
                             break;
                         }
@@ -601,10 +606,10 @@ namespace UELib.Core
                             string yPlane = DeserializeDefaultPropertyValue( PropertyType.Plane, ref deserializeFlags );
                             string zPlane = DeserializeDefaultPropertyValue( PropertyType.Plane, ref deserializeFlags );
                             string wPlane = DeserializeDefaultPropertyValue( PropertyType.Plane, ref deserializeFlags );
-                            propertyValue += "XPlane=(" + xPlane + ")" +
-                                ",YPlane=(" + yPlane + ")" +
-                                ",ZPlane=(" + zPlane + ")" +
-                                ",WPlane=(" + wPlane + ")";
+                            propertyValue += "XPlane={" + xPlane + "}" +
+                                ",YPlane={" + yPlane + "}" +
+                                ",ZPlane={" + zPlane + "}" +
+                                ",WPlane={" + wPlane + "}";
                             break;
                         }
 
@@ -650,39 +655,28 @@ namespace UELib.Core
                                     {
                                         var tag = new UDefaultProperty( _Container, _Outer );
                                         if( tag.Deserialize() )
-                                            tags.Add(tag);
+                                            tags.Add( tag );
                                         else
                                             break;
                                     }
 
-                                    foreach (var groupByName in from tag in tags group tag by tag.Name.Name into groupByName select groupByName )
+                                    foreach (var groupByName in from tag in tags group tag by tag.Name.Text into groupByName select groupByName )
                                     {
-                                        var target = _Outer.Variables.FirstOrDefault(x => x.Name == groupByName.Key);
-                                        
-                                        if (target?.IsArray == true)
+                                        if( groupByName.ElementAtOrDefault( 1 ) == null && groupByName.First().ArrayIndex == 0 )
                                         {
-                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{target.Name}=\r\n{UDecompilingState.Tabs}{{";
-
-                                            int previousIndex = -1;
-                                            using (UDecompilingState.TabScope())
-                                            {
-                                                foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
-                                                {
-                                                    while (++previousIndex != tag.ArrayIndex)
-                                                        propertyValue += $"\r\n{UDecompilingState.Tabs}default,";
-                                                    propertyValue += $"\r\n{UDecompilingState.Tabs}{tag.DeserializeValue(deserializeFlags)},";
-                                                }
-                                            }
-                                    
-                                            propertyValue += $"\r\n{UDecompilingState.Tabs}}},";
+                                            var tag = groupByName.First();
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = {tag.DeserializeValue(deserializeFlags)},";
                                         }
                                         else
                                         {
-                                            foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
+                                            string content = "";
+                                            using (UDecompilingState.TabScope())
                                             {
-                                                var arrayIndexIfAny = tag.ArrayIndex != 0 ? $"[{tag.ArrayIndex}]" : "";
-                                                propertyValue += $"\r\n{UDecompilingState.Tabs}{tag.Name}{arrayIndexIfAny}={tag.DeserializeValue(deserializeFlags)},";
+                                                foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
+                                                    content += $"\r\n{UDecompilingState.Tabs}[{tag.ArrayIndex}] = {tag.DeserializeValue(deserializeFlags)},";
                                             }
+
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = new()\r\n{UDecompilingState.Tabs}{{{content}\r\n{UDecompilingState.Tabs}}},";
                                         }
                                     }
                                 }
@@ -754,25 +748,30 @@ namespace UELib.Core
                                 arrayType = PropertyType.StructProperty;
                             }
 
-                            using (UDecompilingState.TabScope())
+                            try
                             {
-                                for( int i = 0; i < arraySize; ++ i )
+                                using (UDecompilingState.TabScope())
                                 {
-                                    string elementValue = DeserializeDefaultPropertyValue( arrayType, ref deserializeFlags );
-                                    if( withinStruct == false && (_TempFlags & ReplaceNameMarker) != 0 )
+                                    for( int i = 0; i < arraySize; ++ i )
                                     {
-                                        elementValue = elementValue.Replace( "%ARRAYNAME%=", "//"+Name + "[" + i + "]=\r\n" + UDecompilingState.Tabs );
-                                        _TempFlags = 0x00;
-                                    }
+                                        string elementValue = DeserializeDefaultPropertyValue( arrayType, ref deserializeFlags );
+                                        if( withinStruct == false && (_TempFlags & ReplaceNameMarker) != 0 )
+                                        {
+                                            elementValue = elementValue.Replace( "%ARRAYNAME%=", "//"+ Name + "[" + i + "]=\r\n" + UDecompilingState.Tabs );
+                                            _TempFlags = 0x00;
+                                        }
 
-                                    propertyValue += $"\r\n{UDecompilingState.Tabs}{elementValue},";
+                                        propertyValue += $"\r\n{UDecompilingState.Tabs}{elementValue},";
+                                    }
                                 }
                             }
-                            propertyValue = $"new {friendlyType}\r\n{UDecompilingState.Tabs}{{{propertyValue}\r\n{UDecompilingState.Tabs}}}";
-                            if (withinStruct == false)
-                                propertyValue = $"{Name} = {propertyValue}";
-
-                            _TempFlags |= DoNotAppendName;
+                            finally
+                            {
+                                propertyValue = $"new {friendlyType}\r\n{UDecompilingState.Tabs}{{{propertyValue}\r\n{UDecompilingState.Tabs}}}";
+                                if (withinStruct == false)
+                                    propertyValue = $"{Name} = {propertyValue}";
+                                _TempFlags |= DoNotAppendName;
+                            }
                             break;
                         }
 
@@ -783,7 +782,10 @@ namespace UELib.Core
             }
             catch( Exception e )
             {
-                return propertyValue + "\r\n/* Exception thrown while deserializing " + Name + "\r\n" + e + " */";
+                if( type == PropertyType.StructProperty && this.Type == PropertyType.ArrayProperty )
+                    throw;
+                
+                return propertyValue + e.OutputWarningException( $"Exception thrown while deserializing {Name}" );
             }
             finally
             {
@@ -794,7 +796,9 @@ namespace UELib.Core
         #endregion
 
         #region Decompilation
-        public string Decompile()
+
+        public string Decompile() => Decompile( false );
+        public string Decompile(bool valueOnly)
         {
             _TempFlags = 0x00;
             string value;
@@ -812,6 +816,9 @@ namespace UELib.Core
                 _Container.MaybeDisposeBuffer();
             }
 
+            if( valueOnly )
+                return value;
+
             // Array or Inlined object
             if( (_TempFlags & DoNotAppendName) != 0 )
             {
@@ -821,9 +828,10 @@ namespace UELib.Core
             string arrayindex = String.Empty;
             if( ArrayIndex > 0 && Type != PropertyType.BoolProperty )
             {
-                arrayindex += "[" + ArrayIndex + "]";
+                arrayindex = $"[{ArrayIndex}]";
             }
-            return Name + arrayindex + "=" + value + ";";
+            
+            return $"{Name}{arrayindex} = {value};";
         }
         #endregion
 

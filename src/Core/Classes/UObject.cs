@@ -5,6 +5,11 @@ using System.IO;
 
 namespace UELib.Core
 {
+    using System.Linq;
+    using Flags;
+
+
+
     public class ObjectEventArgs : EventArgs
     {
         public UObject ObjectRef{ get; private set; }
@@ -393,6 +398,19 @@ namespace UELib.Core
         [Pure]
         public virtual string GetFriendlyType()
         {
+            if( this is UFunction thisF 
+                && thisF.HasFunctionFlag( FunctionFlags.Delegate ) 
+                && Outer is UClass c 
+                && c.ImplementedInterfaces != null
+                && (from i in c.ImplementedInterfaces
+                    where Package.GetIndexTable( i ).Object is UClass
+                    from f in (Package.GetIndexTable( i ).Object as UClass).Functions
+                    where f.Name == thisF.Name
+                    select f).FirstOrDefault() is UFunction originalFunction)
+            {
+                return originalFunction.GetFriendlyType();
+            }
+            
             string output = Outer != null && Outer is UPackage == false ? Outer.GetFriendlyType() + "." : "";
             output += Name;
             return output;

@@ -30,11 +30,7 @@ namespace UELib.Core
             }
             catch( Exception e )
             {
-                return String.Format
-                (
-                    "An exception of type \"{0}\" occurred while decompiling {1}.\r\nDetails:\r\n{2}",
-                    e.GetType().Name, Text, e
-                );
+                return e.OutputWarningException( $"An exception of type \"{e.GetType().Name}\" occurred while decompiling {Text}" );
             }
         }
     }

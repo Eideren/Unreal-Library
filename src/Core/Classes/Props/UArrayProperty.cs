@@ -33,7 +33,7 @@ namespace UELib.Core
         {
             if( InnerProperty != null )
             {
-                return "array" + "<" + GetFriendlyInnerType() + ">";
+                return $"array<{GetFriendlyInnerType()}>";
             }
             return "array";
         }

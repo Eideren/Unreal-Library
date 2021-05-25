@@ -197,11 +197,7 @@ namespace UELib.Core
                 {
                     if (FindEnum(out var enumObject, out var errorInfo))
                     {
-                        var index = Value;
-                        if (index < enumObject.Names.Count)
-                            return $"{enumObject.GetFriendlyType()}.{enumObject.Names[index]}/*{Value}*/";
-                        else
-                            return $"/*val out of enum range*/{Value}";
+                        return enumObject.ParseAsEnum(Value);
                     }
 
                     return errorInfo + Value.ToString(CultureInfo.InvariantCulture);

@@ -2,6 +2,11 @@ using System;
 
 namespace UELib
 {
+    using System.Collections.Generic;
+    using Core;
+
+
+
     public static class UDecompilingState
     {
         [System.Diagnostics.CodeAnalysis.SuppressMessage( "Microsoft.Usage", "CA2211:NonConstantFieldsShouldNotBeVisible" )]

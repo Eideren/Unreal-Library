@@ -19,7 +19,9 @@ namespace UELib.Core
             {
                 output = DecompileProperties().Replace(';', ',');
             }
-            return $"new {Class.Name}()\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */";
+            if(Class.Name == "UITexture")
+                System.Diagnostics.Debugger.Break();
+            return $"new {Class.Name}\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */";
         }
 
         // Ment to be overriden!
@@ -32,7 +34,7 @@ namespace UELib.Core
         protected string DecompileProperties()
         {
             if( Properties == null || Properties.Count == 0 )
-                return UDecompilingState.Tabs + "// This object has no properties!\r\n";
+                return "";
 
             string output = String.Empty;
 
@@ -42,23 +44,53 @@ namespace UELib.Core
 
             for( int i = 0; i < Properties.Count; ++ i )
             {
-                string propOutput = Properties[i].Decompile();
-
-                // This is the first element of a static array
-                if( i+1 < Properties.Count
-                    && Properties[i+1].Name == Properties[i].Name
-                    && Properties[i].ArrayIndex <= 0
-                    && Properties[i+1].ArrayIndex > 0 )
+                if( i + 1 < Properties.Count
+                    && Properties[ i + 1 ].Name == Properties[ i ].Name
+                    && Properties[ i ].ArrayIndex <= 0
+                    && Properties[ i + 1 ].ArrayIndex > 0 )
                 {
-                    propOutput = propOutput.Insert( Properties[i].Name.Length, "[0]" );
-                }
+                    string propOutput = "";
+                    var arrayVarName = Properties[ i ].Name;
+                    using( UDecompilingState.TabScope() )
+                    {
+                        for(int increasingIndex = Properties[ i ].ArrayIndex; 
+                            
+                            i < Properties.Count 
+                            && Properties[ i ].Name == arrayVarName 
+                            && Properties[ i ].ArrayIndex == increasingIndex; 
+                            
+                            i++, increasingIndex++ )
+                        {
+                            propOutput += $"\r\n{UDecompilingState.Tabs}[{i}] = {Properties[i].Decompile(true)},";
+                        }
+                    }
+                    i--;
 
+                    output += $"{UDecompilingState.Tabs}{arrayVarName} = new()\r\n{UDecompilingState.Tabs}{{ {propOutput}\r\n {UDecompilingState.Tabs}}};\r\n";
+                    continue;
+                }
+                
+                
+                
+            
+                /*if( arrayindex == String.Empty 
+                    && _Container.Class is UClass uclass
+                    && ( from s in uclass.EnumerateInheritance()
+                        where s is UClass
+                        from v in ( (UClass) s ).Variables
+                        where v.Name == Name.Name
+                        select v ).FirstOrDefault() is UProperty matchingVariable && matchingVariable.IsArray )
+                {
+                    value = $"new []{{ {value} }}";
+                }*/
+                
+                
                 // FORMAT: 'DEBUG[TAB /* 0xPOSITION */] TABS propertyOutput + NEWLINE
                 output += UDecompilingState.Tabs +
 #if DEBUG_POSITIONS
             "/*" + UnrealMethods.FlagToString( (uint)Properties[i]._BeginOffset ) + "*/\t" +
 #endif
-                            propOutput + "\r\n";
+                    Properties[i].Decompile() + "\r\n";
             }
             return output;
         }
