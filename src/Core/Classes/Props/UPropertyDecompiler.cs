@@ -38,16 +38,11 @@ namespace UELib.Core
             if (IsArray)
             {
                 var type = GetFriendlyType();
-                /*if (this.Outer.GetType() != typeof(UScriptStruct) || (type != "int" && type != "float" && type != "byte"))
-                {*/
-                    string arraySizeDecl = ArrayEnum != null 
-                        ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
-                        : ArrayDim.ToString( CultureInfo.InvariantCulture );
-                    
-                    return $"{FormatFlags()}StaticArray<{string.Join(", ", Enumerable.Repeat(type, ArrayDim))}>/*[{arraySizeDecl}]*/ {Name}{DecompileMeta()}";
-                /*}
-
-                return $"ESpan<{GetFriendlyType()}> {FormatFlags()} {Name}{DecompileMeta()}{{ get{{ fixed({GetFriendlyType()}* f = _bField_{Name}){{ return new ESpan<{GetFriendlyType()}>(f, {FormatSize(false)}); }} }} set{{ fixed({GetFriendlyType()}* f = _bField_{Name}){{ value.CopyOverPtr( f, {FormatSize(false)}); }} }} }}\r\n{UDecompilingState.Tabs}fixed {GetFriendlyType()} _bField_{Name}{FormatSize()}";*/
+                string arraySizeDecl = ArrayEnum != null 
+                    ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
+                    : ArrayDim.ToString( CultureInfo.InvariantCulture );
+                
+                return $"{FormatFlags()}StaticArray<{string.Join(", ", Enumerable.Repeat(type, ArrayDim))}>/*[{arraySizeDecl}]*/ {Name}{DecompileMeta()}";
             }
             if ((PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm) != 0)
                 postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";

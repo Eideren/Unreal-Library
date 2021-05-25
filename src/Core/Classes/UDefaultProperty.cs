@@ -306,7 +306,7 @@ namespace UELib.Core
                         break;
 
                     case PropertyType.NameProperty:
-                        propertyValue = "\"" + _Buffer.ReadName() + "\"";
+                        propertyValue = "(name)\"" + _Buffer.ReadName() + "\"";
                         break;
 
                     case PropertyType.IntProperty:
@@ -650,30 +650,41 @@ namespace UELib.Core
                                 FindProperty( out _Outer );
                                 using (UDecompilingState.TabScope())
                                 {
-                                    List<UDefaultProperty> tags = new List<UDefaultProperty>();
+                                    var tags = new List<(UDefaultProperty tag, string deserialized)>();
                                     while( true )
                                     {
                                         var tag = new UDefaultProperty( _Container, _Outer );
                                         if( tag.Deserialize() )
-                                            tags.Add( tag );
+                                            tags.Add( (tag, tag.DeserializeValue(deserializeFlags)) );
                                         else
                                             break;
                                     }
 
-                                    foreach (var groupByName in from tag in tags group tag by tag.Name.Text into groupByName select groupByName )
+                                    foreach (var groupByName in from tag in tags group tag by tag.tag.Name.Text into groupByName select groupByName )
                                     {
-                                        if( groupByName.ElementAtOrDefault( 1 ) == null && groupByName.First().ArrayIndex == 0 )
+                                        if( groupByName.ElementAtOrDefault( 1 ) == default && (groupByName.First().tag.ArrayIndex == 0/* || groupByName.First().tag.Type == PropertyType.BoolProperty*/) )
                                         {
                                             var tag = groupByName.First();
-                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = {tag.DeserializeValue(deserializeFlags)},";
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = {tag.deserialized},";
                                         }
                                         else
                                         {
                                             string content = "";
                                             using (UDecompilingState.TabScope())
                                             {
-                                                foreach (var tag in from i in groupByName orderby i.ArrayIndex select i)
-                                                    content += $"\r\n{UDecompilingState.Tabs}[{tag.ArrayIndex}] = {tag.DeserializeValue(deserializeFlags)},";
+                                                int counts = -1;
+                                                bool holes = false;
+                                                foreach( var tag in from i in groupByName orderby i.tag.ArrayIndex select i )
+                                                {
+                                                    content += $"\r\n{UDecompilingState.Tabs}[{tag.tag.ArrayIndex}] = {tag.deserialized},";
+                                                    if( ++counts != tag.tag.ArrayIndex )
+                                                        holes = true;
+                                                }
+
+                                                if( holes )
+                                                {
+                                                    content += $"\r\n{UDecompilingState.Tabs}#warning index access seems to hint that the collection is not wholly assigned to, this should probably be changed to assigning to specific indices on the existing collection instead of assigning a whole new collection";
+                                                }
                                             }
 
                                             propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = new()\r\n{UDecompilingState.Tabs}{{{content}\r\n{UDecompilingState.Tabs}}},";

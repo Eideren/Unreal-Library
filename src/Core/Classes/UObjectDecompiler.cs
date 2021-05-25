@@ -19,8 +19,6 @@ namespace UELib.Core
             {
                 output = DecompileProperties().Replace(';', ',');
             }
-            if(Class.Name == "UITexture")
-                System.Diagnostics.Debugger.Break();
             return $"new {Class.Name}\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */";
         }
 
@@ -53,15 +51,20 @@ namespace UELib.Core
                     var arrayVarName = Properties[ i ].Name;
                     using( UDecompilingState.TabScope() )
                     {
-                        for(int increasingIndex = Properties[ i ].ArrayIndex; 
+                        if( Properties[ i ].ArrayIndex != 0 )
+                        {
+                            propOutput += $"\r\n{UDecompilingState.Tabs}#warning index access seems to hint that the collection is not wholly assigned to, this should probably be changed to assigning to specific indices on the existing collection instead of assigning a whole new collection";
+                        }
+                        
+                        for(int arrayIndex = Properties[ i ].ArrayIndex; 
                             
                             i < Properties.Count 
                             && Properties[ i ].Name == arrayVarName 
-                            && Properties[ i ].ArrayIndex == increasingIndex; 
+                            && Properties[ i ].ArrayIndex == arrayIndex; 
                             
-                            i++, increasingIndex++ )
+                            i++, arrayIndex++ )
                         {
-                            propOutput += $"\r\n{UDecompilingState.Tabs}[{i}] = {Properties[i].Decompile(true)},";
+                            propOutput += $"\r\n{UDecompilingState.Tabs}[{arrayIndex}] = {Properties[i].Decompile(true)},";
                         }
                     }
                     i--;

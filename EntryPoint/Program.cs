@@ -425,7 +425,7 @@ namespace EntryPoint
                 {
                     var outPath = @$"{destFolder}\{c.Package.PackageName}\{c.Name}.cs";
 
-                    if (File.Exists(outPath) && (from x in File.ReadLines(outPath) where x.Contains("NO OVERWRITE") || x.Contains("NO OVERRIDE") select x).FirstOrDefault() != null)
+                    if (File.Exists(outPath) && (from x in File.ReadLines(outPath) where x.Contains("NO OVERWRITE") select x).FirstOrDefault() != null)
                     {
                         WriteLine("SKIP\t"+c.Name);
                         return;

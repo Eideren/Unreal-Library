@@ -295,7 +295,7 @@ namespace UELib.Core
                     if (outerStr.Length != 0)
                         output += $"{{ Outer = {outerStr} }}";
                     
-                    return "new" + output;
+                    return $"new{output}";
                 }
             }
 

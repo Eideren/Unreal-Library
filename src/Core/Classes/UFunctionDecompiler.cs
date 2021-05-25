@@ -328,14 +328,28 @@ namespace UELib.Core
             if( Params != null )
             {
                 bool isIterator = HasFunctionFlag(Flags.FunctionFlags.Iterator);
-                foreach( var parm in Params )
+                int indexOfLastOut = 0;
+                for( indexOfLastOut = Params.Count - 1; indexOfLastOut >= 0; indexOfLastOut-- )
                 {
+                    var parm = Params[ indexOfLastOut ];
+                    if (parm == ReturnProperty)
+                        continue;
+                    if((parm.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
+                        break;
+                }
+
+                for( int i = 0; i < Params.Count; i++ )
+                {
+                    var parm = Params[ i ];
                     if (parm == ReturnProperty)
                         continue;
                     if (isIterator && (parm.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
                         continue; // Is the iterator's return params
-                        
-                    output += parm.Decompile() + ", ";
+
+                    var decompiled = parm.Decompile();
+                    if( i < indexOfLastOut && decompiled.EndsWith( " = default" ) )
+                        decompiled = decompiled.Replace( " = default", "/* = default*/" );
+                    output += $"{decompiled}, ";
                 }
 
                 if (output != "")
@@ -350,17 +364,16 @@ namespace UELib.Core
             bool forceDefaultOut = UnrealConfig.StubMode;
             if (UnrealConfig.StubMode && (this.Outer as UClass)?.IsClassInterface() == true)
                 return ";";
-
             
-
-            string locals = UnrealConfig.StubMode ? "" : FormatLocals();
-            if( locals != String.Empty )
-            {
-                locals += "\r\n";
-            }
             string code;
+            string locals;
             using( UDecompilingState.TabScope() )
             {
+                locals = UnrealConfig.StubMode ? "" : FormatLocals();
+                if( locals != String.Empty )
+                {
+                    locals += "\r\n";
+                }
                 try
                 {
                     code = UnrealConfig.StubMode ? "" : DecompileScript();
