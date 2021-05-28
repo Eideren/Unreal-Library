@@ -101,7 +101,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((bool){base.Decompile()})";
+                    return $"ByteToBool({base.Decompile()})";
                 }
             }
 
@@ -204,7 +204,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((byte){base.Decompile()})";
+                    return $"StringToByte({base.Decompile()})";
                 }
             }
 
@@ -212,7 +212,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((int){base.Decompile()})";
+                    return $"StringToInt({base.Decompile()})";
                 }
             }
 
@@ -220,7 +220,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((bool){base.Decompile()})";
+                    return $"StringToBool({base.Decompile()})";
                 }
             }
 
@@ -228,7 +228,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((float){base.Decompile()})";
+                    return $"StringToFloat({base.Decompile()})";
                 }
             }
 
@@ -236,7 +236,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((Vector){base.Decompile()})";
+                    return $"StringToVector({base.Decompile()})";
                 }
             }
 
@@ -244,7 +244,7 @@
             {
                 public override string Decompile()
                 {
-                    return $"((Rotator){base.Decompile()})";
+                    return $"StringToRotator({base.Decompile()})";
                 }
             }
 
