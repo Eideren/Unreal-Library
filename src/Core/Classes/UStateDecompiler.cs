@@ -29,7 +29,6 @@ namespace UELib.Core
 
             if( UnrealConfig.StubMode == false )
             {
-                
                 var locals = FormatLocals();
                 if( locals != String.Empty )
                 {
@@ -37,7 +36,6 @@ namespace UELib.Core
                 }
 
                 content += FormatFunctionScope();
-                
             }
             else
             {
@@ -117,9 +115,16 @@ namespace UELib.Core
 
             if (this is UClass thisClass)
             {
+                // Some functions are only declared within states, not their outer class,
+                // find those to add them to the c# class and make sure to not cover the same function shared between states
+                var coveredFuncDef = new HashSet<(string, string, string)>();
                 foreach (var undefFunc in from s in thisClass.States from f in s.Functions where f.Super == null select f)
                 {
-                    output += $"\r\npublic delegate {undefFunc.ReturnType()} {undefFunc.Name}_del({undefFunc.FormatParms()});\r\n";
+                    var v = ( ret: undefFunc.ReturnType(), name: undefFunc.Name, parms: undefFunc.FormatParms() );
+                    if( coveredFuncDef.Contains( v ) )
+                        continue;
+                    coveredFuncDef.Add( v );
+                    output += $"\r\npublic delegate {v.ret} {v.name}_del({v.parms});\r\n";
                     output += $"public virtual {undefFunc.Name}_del {undefFunc.Name} {{ get => bfield_{undefFunc.Name} ?? ({undefFunc.EmptyInlineDeclaration()}); set => bfield_{undefFunc.FriendlyName} = value; }} {undefFunc.FriendlyName}_del bfield_{undefFunc.FriendlyName};\r\n";
                     output += $"public virtual {undefFunc.Name}_del global_{undefFunc.Name} => {undefFunc.EmptyInlineDeclaration()};\r\n";
                 }
@@ -148,11 +153,6 @@ namespace UELib.Core
 
         string FormatFunctionScope()
         {
-            if (Functions == null || !Functions.Any())
-            {
-                return String.Empty;
-            }
-            
             string swapAndIgnore = "";
             var inheritance = new List<UState>();
             using (UDecompilingState.TabScope())
