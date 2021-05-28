@@ -107,7 +107,8 @@ namespace UELib.Core
 
                 public override string Decompile()
                 {
-                    return Decompiler._Container.Package.GetIndexName( NameIndex );
+                    var v = Decompiler._Container.Package.GetIndexName( NameIndex );
+                    return v == "None" ? "default" : v;
                 }
             }
 
