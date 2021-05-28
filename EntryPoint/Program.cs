@@ -88,6 +88,12 @@ namespace EntryPoint
             "^Camera$",
             "^CameraActor$",
             "^TdPlayerCamera$",
+            
+            "^GameInfo$",
+            "^TdLobbyGameInfo$",
+            "^Td\\w*Game$",
+            "^TdMenuGameInfo$",
+            "^TdSPLevelRace$",
         };
         public static string[] filtersOut => new string[]
         {
@@ -345,6 +351,10 @@ namespace EntryPoint
                 }
             }
 
+            HashSet<string> packageName = new HashSet<string>();
+            foreach (var p in packages)
+                packageName.Add(p.package.PackageName);
+
             Dictionary<string, UClass> validClasses = new Dictionary<string, UClass>();
             List<UClass> selectedClasses = new List<UClass>();
             List<UClass> stubClasses = new List<UClass>();
@@ -401,29 +411,28 @@ namespace EntryPoint
                     
                 return false;
             }
-
-            HashSet<string> packageName = new HashSet<string>();
-            foreach (var p in packages)
-                packageName.Add(p.package.PackageName);
             
             while (true)
             {
                 UnrealConfig.SuppressComments = true;
 
-                
                 UnrealConfig.StubMode = false;
                 foreach( UClass c in selectedClasses )
-                    Output( @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Converted", c, packageName );
+                    Output( @"D:\MirrorsEdge\Deadpoint\Assets\Source\Converted", c, packageName );
 
                 WriteLine("-- Starting stubs --");
                 
                 UnrealConfig.StubMode = true;
                 foreach( UClass c in stubClasses )
-                    Output( @"D:\MirrorsEdge\Sources\MEdgeSharp\AnimationSystem\Stubs", c, packageName );
+                    Output( @"D:\MirrorsEdge\Deadpoint\Assets\Source\Stubs", c, packageName );
                 
-                static void Output(string destFolder, UClass c, HashSet<string> packageName)
+                static void Output(string destFolder, UClass c, HashSet<string> packageNames)
                 {
-                    var outPath = @$"{destFolder}\{c.Package.PackageName}\{c.Name}.cs";
+                    string packageName = c.Package.PackageName;
+                    if( packageName == "Editor" )
+                        packageName = "Editor_"; // Fix for unity automatically splitting editor assemblies
+                    
+                    var outPath = @$"{destFolder}\{packageName}\{c.Name}.cs";
 
                     if (File.Exists(outPath) && (from x in File.ReadLines(outPath) where x.Contains("NO OVERWRITE") select x).FirstOrDefault() != null)
                     {
@@ -436,7 +445,7 @@ namespace EntryPoint
                     var decompilation = c.Decompile();
                     decompilation = decompilation.Replace("\r\n", "\r\n\t");
                     Directory.CreateDirectory(Path.GetDirectoryName(outPath));
-                    var usings = string.Join(" ", from i in packageName where i != c.Package.PackageName select $"using {i};");
+                    var usings = string.Join(" ", from i in packageNames where i != c.Package.PackageName select $"using {i};");
                     File.WriteAllText(outPath, $"namespace MEdge.{c.Package.PackageName}{{\n{usings}\n\n{decompilation}\n}}");
                 }
                 
