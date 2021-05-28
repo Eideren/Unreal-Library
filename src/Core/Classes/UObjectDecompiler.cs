@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 
 namespace UELib.Core
 {
@@ -68,8 +69,14 @@ namespace UELib.Core
                         }
                     }
                     i--;
-
-                    output += $"{UDecompilingState.Tabs}{arrayVarName} = new()\r\n{UDecompilingState.Tabs}{{ {propOutput}\r\n {UDecompilingState.Tabs}}};\r\n";
+                    
+                    UProperty? arrType = ( 
+                        from s in ((this as UStruct)??(this as UnknownObject)?.Class as UStruct).EnumerateInheritance()
+                        from v in s.Variables
+                        where v.Name == arrayVarName
+                        select v ).FirstOrDefault();
+                    
+                    output += $"{UDecompilingState.Tabs}{arrayVarName} = new {arrType?.GetFriendlyType()}()\r\n{UDecompilingState.Tabs}{{ {propOutput}\r\n {UDecompilingState.Tabs}}};\r\n";
                     continue;
                 }
                 

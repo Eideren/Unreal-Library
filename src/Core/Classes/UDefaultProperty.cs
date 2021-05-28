@@ -347,7 +347,7 @@ namespace UELib.Core
                                 {
                                     if (p.Variables?.FirstOrDefault(x => x.Name == Name) is UProperty o)
                                     {
-                                        propertyValue = o.GetFriendlyType() + "." + propertyValue;
+                                        propertyValue = o.GetFriendlyPropType() + "." + propertyValue;
                                     }
                                 }
                             }
@@ -669,6 +669,11 @@ namespace UELib.Core
                                         }
                                         else
                                         {
+                                            UProperty? arrType = ( from s in _Outer.EnumerateInheritance()
+                                                from v in s.Variables
+                                                where v.Name == groupByName.Key
+                                                select v ).FirstOrDefault();
+                                            
                                             string content = "";
                                             using (UDecompilingState.TabScope())
                                             {
@@ -687,7 +692,7 @@ namespace UELib.Core
                                                 }
                                             }
 
-                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = new()\r\n{UDecompilingState.Tabs}{{{content}\r\n{UDecompilingState.Tabs}}},";
+                                            propertyValue += $"\r\n{UDecompilingState.Tabs}{groupByName.Key} = new {arrType?.GetFriendlyType()}()\r\n{UDecompilingState.Tabs}{{{content}\r\n{UDecompilingState.Tabs}}},";
                                         }
                                     }
                                 }

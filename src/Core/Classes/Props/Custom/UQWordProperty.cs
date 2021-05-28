@@ -8,7 +8,7 @@
         public class UQWordProperty : UIntProperty
         {
             /// <inheritdoc/>
-            public override string GetFriendlyType()
+            public override string GetFriendlyPropType()
             {
                 return "Qword";
             }

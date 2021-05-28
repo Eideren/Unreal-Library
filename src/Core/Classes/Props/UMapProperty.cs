@@ -32,7 +32,7 @@ namespace UELib.Core
         }
 
         /// <inheritdoc/>
-        public override string GetFriendlyType()
+        public override string GetFriendlyPropType()
         {
             if( _Key == 0 && _Value == 0 )
                 return "/*map<0,0>*/map<object, object>";

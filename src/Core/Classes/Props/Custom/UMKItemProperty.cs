@@ -8,7 +8,7 @@
         public class UMKItemProperty : UProperty
         {
             /// <inheritdoc/>
-            public override string GetFriendlyType()
+            public override string GetFriendlyPropType()
             {
                 return "MKItem";
             }

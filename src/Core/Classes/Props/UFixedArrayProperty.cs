@@ -38,10 +38,10 @@ namespace UELib.Core
         }
 
         /// <inheritdoc/>
-        public override string GetFriendlyType()
+        public override string GetFriendlyPropType()
         {
             // Just move to decompiling?
-            return base.GetFriendlyType() + "[" + Count + "]";
+            return base.GetFriendlyPropType() + "[" + Count + "]";
         }
     }
 }

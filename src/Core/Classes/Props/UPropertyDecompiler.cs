@@ -34,23 +34,45 @@ namespace UELib.Core
 
         public override string Decompile()
         {
-            string postfix = "";
             if (IsArray)
+                return $"{FormatFlags()}{GetFriendlyType()} {Name}{DecompileMeta()}";
+
+            string friendlyType = GetFriendlyType();
+            string postfix = "";
+            if( ( PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm ) != 0 )
             {
-                var type = GetFriendlyType();
-                string arraySizeDecl = ArrayEnum != null 
-                    ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
-                    : ArrayDim.ToString( CultureInfo.InvariantCulture );
-                
-                return $"{FormatFlags()}StaticArray<{string.Join(", ", Enumerable.Repeat(type, ArrayDim))}>/*[{arraySizeDecl}]*/ {Name}{DecompileMeta()}";
-            }
-            if ((PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm) != 0)
+                var defaultValue = "default";
                 postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";
-            
-            return FormatFlags() + GetFriendlyType() + FormatIsArray() 
+            }
+
+            return FormatFlags() + friendlyType + FormatIsArray() 
                    + " " + Name + postfix
                    + DecompileMeta();
         }
+
+
+
+        public override string GetFriendlyType()
+        {
+            var type = GetFriendlyPropType() ?? base.GetFriendlyType();
+            if( IsArray )
+            {
+                string arraySizeDecl = ArrayEnum != null 
+                    ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
+                    : ArrayDim.ToString( CultureInfo.InvariantCulture );
+                return $"StaticArray<{string.Join( ", ", Enumerable.Repeat( type, ArrayDim ) )}>/*[{arraySizeDecl}]*/";
+            }
+            else
+            {
+                return type;
+            }
+        }
+
+
+
+        public virtual string GetFriendlyPropType() => null;
+
+
 
         private string FormatSize(bool withBracket = true)
         {

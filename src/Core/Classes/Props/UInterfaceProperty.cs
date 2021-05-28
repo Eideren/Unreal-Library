@@ -35,7 +35,7 @@ namespace UELib.Core
         }
 
         /// <inheritdoc/>
-        public override string GetFriendlyType()
+        public override string GetFriendlyPropType()
         {
             return InterfaceObject != null ? InterfaceObject.GetFriendlyType() : "@NULL";
         }

@@ -8,9 +8,9 @@
         public class UXWeakReferenceProperty : UObjectProperty
         {
             /// <inheritdoc/>
-            public override string GetFriendlyType()
+            public override string GetFriendlyPropType()
             {
-                return base.GetFriendlyType() + "&";
+                return base.GetFriendlyPropType() + "&";
             }
         }
     }

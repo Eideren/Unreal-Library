@@ -8,7 +8,7 @@
         public class UMKItemNoDestroyProperty : UMKItemProperty
         {
             /// <inheritdoc/>
-            public override string GetFriendlyType()
+            public override string GetFriendlyPropType()
             {
                 return "MKNoDestroyItem";
             }
