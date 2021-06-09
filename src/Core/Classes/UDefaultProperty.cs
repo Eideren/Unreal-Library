@@ -379,18 +379,6 @@ namespace UELib.Core
                                 if( obj.Properties != null && obj.Properties.Count > 0 )
                                 {
                                     propertyValue = obj.Decompile();
-
-                                    _TempFlags |= DoNotAppendName;
-                                    if( (deserializeFlags & DeserializeFlags.WithinArray) != 0 )
-                                    {
-                                        _TempFlags |= ReplaceNameMarker;
-                                        propertyValue = "%ARRAYNAME%=" + propertyValue;
-                                    }
-                                    else
-                                    {
-                                        propertyValue = $"{Name} = {propertyValue}";
-                                    }
-
                                     break;
                                 }
                             }
@@ -427,7 +415,7 @@ namespace UELib.Core
 
                             var enumParamNames = string.Join(", ", (from p in del.Params where p != del.ReturnProperty select p.Name)) ;
                             
-                            propertyValue = $"{delegateName} = ({enumParamNames}) => {delegateValue}({enumParamNames})";
+                            propertyValue = $"({enumParamNames}) => {delegateValue}({enumParamNames})";
                             break;
                         }
 
@@ -784,8 +772,6 @@ namespace UELib.Core
                             finally
                             {
                                 propertyValue = $"new {friendlyType}\r\n{UDecompilingState.Tabs}{{{propertyValue}\r\n{UDecompilingState.Tabs}}}";
-                                if (withinStruct == false)
-                                    propertyValue = $"{Name} = {propertyValue}";
                                 _TempFlags |= DoNotAppendName;
                             }
                             break;

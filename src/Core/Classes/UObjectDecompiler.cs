@@ -43,13 +43,19 @@ namespace UELib.Core
 
             for( int i = 0; i < Properties.Count; ++ i )
             {
+                var propName = Properties[ i ].Name.Name;
+                UProperty? prop = ( 
+                    from s in ((this as UStruct)??(this as UnknownObject)?.Class as UStruct).EnumerateInheritance()
+                    from v in s.Variables
+                    where v.Name == propName
+                    select v ).FirstOrDefault();
+
                 if( i + 1 < Properties.Count
                     && Properties[ i + 1 ].Name == Properties[ i ].Name
                     && Properties[ i ].ArrayIndex <= 0
                     && Properties[ i + 1 ].ArrayIndex > 0 )
                 {
                     string propOutput = "";
-                    var arrayVarName = Properties[ i ].Name;
                     using( UDecompilingState.TabScope() )
                     {
                         if( Properties[ i ].ArrayIndex != 0 )
@@ -60,7 +66,7 @@ namespace UELib.Core
                         for(int arrayIndex = Properties[ i ].ArrayIndex; 
                             
                             i < Properties.Count 
-                            && Properties[ i ].Name == arrayVarName 
+                            && Properties[ i ].Name == propName 
                             && Properties[ i ].ArrayIndex == arrayIndex; 
                             
                             i++, arrayIndex++ )
@@ -70,37 +76,19 @@ namespace UELib.Core
                     }
                     i--;
                     
-                    UProperty? arrType = ( 
-                        from s in ((this as UStruct)??(this as UnknownObject)?.Class as UStruct).EnumerateInheritance()
-                        from v in s.Variables
-                        where v.Name == arrayVarName
-                        select v ).FirstOrDefault();
-                    
-                    output += $"{UDecompilingState.Tabs}{arrayVarName} = new {arrType?.GetFriendlyType()}()\r\n{UDecompilingState.Tabs}{{ {propOutput}\r\n {UDecompilingState.Tabs}}};\r\n";
+                    output += $"{UDecompilingState.Tabs}{propName} = new {prop?.GetFriendlyType()}()\r\n{UDecompilingState.Tabs}{{ {propOutput}\r\n {UDecompilingState.Tabs}}};\r\n";
                     continue;
                 }
-                
-                
-                
-            
-                /*if( arrayindex == String.Empty 
-                    && _Container.Class is UClass uclass
-                    && ( from s in uclass.EnumerateInheritance()
-                        where s is UClass
-                        from v in ( (UClass) s ).Variables
-                        where v.Name == Name.Name
-                        select v ).FirstOrDefault() is UProperty matchingVariable && matchingVariable.IsArray )
-                {
-                    value = $"new []{{ {value} }}";
-                }*/
-                
+
+                if( prop.IsArray )
+                    propName += "[0]";
                 
                 // FORMAT: 'DEBUG[TAB /* 0xPOSITION */] TABS propertyOutput + NEWLINE
                 output += UDecompilingState.Tabs +
 #if DEBUG_POSITIONS
             "/*" + UnrealMethods.FlagToString( (uint)Properties[i]._BeginOffset ) + "*/\t" +
 #endif
-                    Properties[i].Decompile() + "\r\n";
+                    $"{propName} = {Properties[ i ].Decompile( true )};\r\n";
             }
             return output;
         }
