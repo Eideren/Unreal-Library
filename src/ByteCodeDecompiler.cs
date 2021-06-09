@@ -1241,19 +1241,6 @@ namespace UELib.Core
 
                 FieldToken.LastField = null;
 
-                // TODO: Corrigate detection and version.
-                DefaultParameterToken._NextParamIndex = 0;
-                if( Package.Version > 300 )
-                {
-                    var func = _Container as UFunction;
-                    if( func != null && func.Params != null )
-                    {
-                        DefaultParameterToken._NextParamIndex = func.Params.FindIndex(
-                            p => p.HasPropertyFlag( Flags.PropertyFlagsLO.OptionalParm )
-                        );
-                    }
-                }
-
                 // Reset these, in case of a loop in the Decompile function that did not finish due exception errors!
                 _IsWithinClassContext = ClassContext.No;
                 _CanAddSemicolon = false;

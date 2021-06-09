@@ -312,7 +312,7 @@ namespace UELib.Core
             
             return @$"{FormatConstants()}
 {beginScope}
-{UDecompilingState.Tabs}System.Collections.Generic.IEnumerable<Flow> StateFlow(name jumpTo = null)
+{UDecompilingState.Tabs}System.Collections.Generic.IEnumerable<Flow> StateFlow(name jumpTo = default)
 {UDecompilingState.Tabs}{{
 {swapAndIgnore}{logic}
 {UDecompilingState.Tabs}}}

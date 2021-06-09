@@ -17,9 +17,40 @@ namespace UELib.Core
 
                 public override string Decompile()
                 {
-                    // Empty default option parameter!
-                    ++ DefaultParameterToken._NextParamIndex;
-                    return String.Empty;
+                    Decompiler._CanAddSemicolon = true;
+                    
+                    int paramIndex = 0;
+                    foreach( var token in Decompiler.DeserializedTokens )
+                    {
+                        if( ReferenceEquals( token, this ) )
+                            break;
+                        if( token is DefaultParameterToken || token is NothingToken )
+                            paramIndex++;
+                    }
+
+                    string paramName = null;
+                    if( Decompiler._Container is UFunction f )
+                    {
+                        foreach( var param in f.Params )
+                        {
+                            if( param.HasPropertyFlag( Flags.PropertyFlagsLO.OptionalParm ) )
+                            {
+                                if( paramIndex == 0 )
+                                {
+                                    paramName = param.Name;
+                                    if( param.HasPropertyFlag( Flags.PropertyFlagsLO.OutParm ) )
+                                    {
+                                        return $"//var {paramName} = _{paramName} ?? default";
+                                    }
+                                    break;
+                                }
+
+                                paramIndex--;
+                            }
+                        }
+                    }
+                    // paramName is null when this is not a default parameter assignment
+                    return paramName == null ? "" : $"var {paramName} = _{paramName} ?? default";
                 }
             }
             public class NoDelegateToken : NoneToken{}

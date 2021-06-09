@@ -114,12 +114,6 @@ namespace UELib.Core
 
             public class DefaultParameterToken : Token
             {
-                internal static int     _NextParamIndex;
-                private UField          _NextParam
-                {
-                    get{ try{return ((UFunction)Decompiler._Container).Params[_NextParamIndex++];}catch{return null;} }
-                }
-
                 public override void Deserialize( IUnrealStream stream )
                 {
                     stream.ReadUInt16();    // Size
@@ -140,9 +134,39 @@ namespace UELib.Core
                     string expression = DecompileNext();
                     DecompileNext();    // EndParmValue
                     Decompiler._CanAddSemicolon = true;
-                    var param = _NextParam;
-                    var paramName = param != null ? param.Name : "@UnknownOptionalParam_" + (_NextParamIndex - 1);
-                    return String.Format( "{0} = {1}", paramName, expression );
+
+                    int paramIndex = 0;
+                    foreach( var token in Decompiler.DeserializedTokens )
+                    {
+                        if( ReferenceEquals( token, this ) )
+                            break;
+                        if( token is DefaultParameterToken || token is NothingToken )
+                            paramIndex++;
+                    }
+
+                    string paramName = null;
+                    if( Decompiler._Container is UFunction f )
+                    {
+                        foreach( var param in f.Params )
+                        {
+                            if( param.HasPropertyFlag( Flags.PropertyFlagsLO.OptionalParm ) )
+                            {
+                                if( paramIndex == 0 )
+                                {
+                                    paramName = param.Name;
+                                    if( param.HasPropertyFlag( Flags.PropertyFlagsLO.OutParm ) )
+                                    {
+                                        return $"#warning default assignment of out '{paramName}' to {expression}";
+                                    }
+                                    break;
+                                }
+
+                                paramIndex--;
+                            }
+                        }
+                    }
+                    paramName ??= "_UnknownOptionalParam_" + paramIndex;
+                    return $"var {paramName} = _{paramName} ?? {expression}";
                 }
             }
 

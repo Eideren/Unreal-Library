@@ -309,20 +309,20 @@ namespace UELib.Core
                                 output.Append( v == String.Empty ? "," : ", " );
                             }
 
-                            if (v == "default" && p != null)
-                            {
-                                v = $"default({p.GetFriendlyType()})";
-                            }
 
                             if (p != null && (p.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
                             {
-                                if(v.StartsWith("default("))
+                                if(t is NoParmToken)
                                     v = $"/*null*/NullRef.{p.GetFriendlyType().Replace('<', '_').Replace('>', '_').Replace('.', '_')}";
-                                v = "ref/*probably?*/ " + v; // UnrealScript's out is a pass by reference
+                                v = $"ref/*probably?*/ {v}"; // UnrealScript's out is a pass by reference
                             }
-                            if ((p as UByteProperty)?.EnumObject is UEnum enumObject)
+                            else if (t is NoParmToken == false && (p as UByteProperty)?.EnumObject is UEnum enumObject)
                             {
                                 v = enumObject.ParseAsEnum(v);
+                            }
+                            else if( t is NoParmToken && p != null )
+                            {
+                                v = $"default({p.GetFriendlyType()})";
                             }
 
                             if (p is UByteProperty bProp && /*Not for out/refs params*/(bProp.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) == 0 && bProp.EnumObject == null && int.TryParse(v, out _) == false)

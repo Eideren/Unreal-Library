@@ -5,6 +5,10 @@ using System.Linq;
 
 namespace UELib.Core
 {
+    using Flags;
+
+
+
     public partial class UProperty
     {
         // Called before the var () is printed.
@@ -32,39 +36,75 @@ namespace UELib.Core
             return comment + " */\r\n";
         }
 
-        public override string Decompile()
-        {
-            if (IsArray)
-                return $"{FormatFlags()}{GetFriendlyType()} {Name}{DecompileMeta()}";
 
-            string friendlyType = GetFriendlyType();
-            string postfix = "";
-            if( ( PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm ) != 0 )
+
+        public bool HasSpecificDefaultValue()
+        {
+            if( Package.Version <= 300 
+                || ( PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm ) == 0
+                || ( PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm ) != 0)
+                return false;
+            return true;
+            
+            if( Outer is UFunction f )
             {
-                var defaultValue = "default";
-                postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";
+                f.ByteCodeManager.Deserialize();
+                int optionalBeforeThisOne = 0;
+                foreach( var param in f.Params )
+                {
+                    if( ReferenceEquals( this, param ) )
+                        break;
+                    if( param.HasPropertyFlag( Flags.PropertyFlagsLO.OptionalParm ) )
+                        optionalBeforeThisOne++;
+                }
+                    
+                foreach( var token in f.ByteCodeManager.DeserializedTokens )
+                {
+                    if( token is UStruct.UByteCodeDecompiler.DefaultParameterToken 
+                        || token is UStruct.UByteCodeDecompiler.NothingToken )
+                    {
+                        if( optionalBeforeThisOne == 0 )
+                            return true;
+                        optionalBeforeThisOne--;
+                    }
+                }
             }
 
-            return FormatFlags() + friendlyType + FormatIsArray() 
-                   + " " + Name + postfix
-                   + DecompileMeta();
+            return false;
+        }
+
+
+
+        public override string Decompile()
+        {
+            string postfix = "";
+            string name = Name;
+            if( Package.Version > 300 && ( PropertyFlags & (ulong) Flags.PropertyFlagsLO.OptionalParm ) != 0 )
+            {
+                if( HasSpecificDefaultValue() )
+                    name = $"_{name}";
+                postfix = (PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0 ? "/* = default*/" : " = default";
+            }
+            
+            return $"{FormatFlags()}{GetFriendlyType()} {name}{postfix}{DecompileMeta()}";
         }
 
 
 
         public override string GetFriendlyType()
         {
+            var concInter = HasSpecificDefaultValue() ? "?" : "";
             var type = GetFriendlyPropType() ?? base.GetFriendlyType();
             if( IsArray )
             {
                 string arraySizeDecl = ArrayEnum != null 
                     ? ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1, false ) 
                     : ArrayDim.ToString( CultureInfo.InvariantCulture );
-                return $"StaticArray<{string.Join( ", ", Enumerable.Repeat( type, ArrayDim ) )}>/*[{arraySizeDecl}]*/";
+                return $"StaticArray<{string.Join( ", ", Enumerable.Repeat( type, ArrayDim ) )}>/*[{arraySizeDecl}]*/{concInter}";
             }
             else
             {
-                return type;
+                return type + concInter;
             }
         }
 
@@ -85,15 +125,6 @@ namespace UELib.Core
                 ? $"(int){ArrayEnum.ParseAsEnum( ArrayEnum.Names.Count - 1 )}" 
                 : ArrayDim.ToString( CultureInfo.InvariantCulture );
             return withBracket ? $"[{arraySizeDecl}]" : arraySizeDecl;
-        }
-
-        private string FormatIsArray()
-        {
-            if( !IsArray )
-            {
-                return string.Empty;
-            }
-            return "[]";
         }
 
         private string FormatAccess()
