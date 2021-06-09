@@ -231,12 +231,13 @@ namespace UELib.Core
         public string EmptyInlineDeclaration()
         {
             var parameters = FormatParms();
+            int index = 0;
             var paramsAsDiscard = string.Join("", (
                 from c in parameters
                 where c == ','
-                select "_"+c));
+                select "_"+(++index).ToString()+c));
             if (string.IsNullOrWhiteSpace(parameters) == false)
-                paramsAsDiscard += "_";
+                paramsAsDiscard += "_a";
             return $"({paramsAsDiscard})=>{(ReturnType() != "void" ? "default" : "{}" )}";
         }
 
@@ -389,6 +390,8 @@ namespace UELib.Core
 
             if (HasFunctionFlag(Flags.FunctionFlags.Native))
             {
+                if( string.IsNullOrWhiteSpace( code ) == false )
+                    code += "\r\n";
                 code += UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
                 forceDefaultOut = true;
                 forceReturn = true;
