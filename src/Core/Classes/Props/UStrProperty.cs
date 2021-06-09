@@ -19,7 +19,7 @@ namespace UELib.Core
         /// <inheritdoc/>
         public override string GetFriendlyPropType()
         {
-            return "string";
+            return "String";
         }
     }
 }
