@@ -1,6 +1,7 @@
 ﻿#if DECOMPILE
 using System;
 using System.Linq;
+using System.Collections.Generic;
 
 namespace UELib.Core
 {
@@ -278,6 +279,10 @@ namespace UELib.Core
             return output + "\r\n";
         }
 
+
+
+        public List<UObject> HACK_REF = new List<UObject>();
+            
         public string FormatDefaultProperties()
         {
             string output = String.Empty;
@@ -308,7 +313,9 @@ namespace UELib.Core
             UDecompilingState.AddTabs( 1 );
             try
             {
+                HACK_REF.Clear();
                 innerOutput = DecompileProperties();
+                innerOutput = string.Join( "", HACK_REF.Select( x => x.PrepareDefinition() ) ) + innerOutput;
             }
             catch( Exception e )
             {

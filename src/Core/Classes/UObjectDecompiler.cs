@@ -5,6 +5,19 @@ namespace UELib.Core
 {
     public partial class UObject : IUnrealDecompilable
     {
+        public string PrepareDefinition()
+        {
+            string output;
+            using (UDecompilingState.TabScope())
+            {
+                output = DecompileProperties().Replace(';', ',');
+            }
+            
+            return $"{UDecompilingState.Tabs}var {GetOuterGroup().Replace(".", "_")} = new {Class.Name}\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */;\r\n";
+        }
+
+
+
         /// <summary>
         /// Decompiles this Object into human-readable code
         /// </summary>
@@ -14,13 +27,21 @@ namespace UELib.Core
             {
                 BeginDeserializing();
             }
+            
+            var refOut = GetOuterGroup().Replace(".", "_");
 
-            string output;
-            using (UDecompilingState.TabScope())
+            for( var outer = Outer; outer != null; outer = outer.Outer )
             {
-                output = DecompileProperties().Replace(';', ',');
+                if( outer.Outer == null )
+                {
+                    if( ( outer.Class as UStruct ).HACK_REF is var coll && coll.Contains( this ) == false )
+                    {
+                        coll.Add( this );
+                    }
+                }
             }
-            return $"new {Class.Name}\r\n{UDecompilingState.Tabs}{{\r\n{output}{UDecompilingState.Tabs}}}/* Reference: {Class.Name}'{GetOuterGroup()}' */";
+            
+            return refOut;
         }
 
         // Ment to be overriden!
@@ -44,11 +65,12 @@ namespace UELib.Core
             for( int i = 0; i < Properties.Count; ++ i )
             {
                 var propName = Properties[ i ].Name.Name;
-                UProperty? prop = ( 
-                    from s in ((this as UStruct)??(this as UnknownObject)?.Class as UStruct).EnumerateInheritance()
-                    from v in s.Variables
-                    where v.Name == propName
-                    select v ).FirstOrDefault();
+                UProperty? prop = null;
+                if((this as UStruct ?? (this as UnknownObject)?.Class as UStruct) != null)
+                    prop = ( from s in ((this as UStruct)??(this as UnknownObject)?.Class as UStruct).EnumerateInheritance() 
+                        from v in s.Variables 
+                        where v.Name == propName 
+                        select v ).FirstOrDefault();
 
                 if( i + 1 < Properties.Count
                     && Properties[ i + 1 ].Name == Properties[ i ].Name
@@ -80,7 +102,7 @@ namespace UELib.Core
                     continue;
                 }
 
-                if( prop.IsArray )
+                if( prop?.IsArray == true )
                     propName += "[0]";
                 
                 // FORMAT: 'DEBUG[TAB /* 0xPOSITION */] TABS propertyOutput + NEWLINE
