@@ -371,23 +371,24 @@ namespace UELib.Core
                                 break;
                             }
 
-                            // If true, object is an archetype or subobject.
-                            if( obj.Outer == _Container && (deserializeFlags & DeserializeFlags.WithinStruct) == 0 )
+                            if( obj.GetClassName() == "Class" )
                             {
+                                propertyValue = $"ClassT<{obj.GetOuterGroup()}>()";
+                            }
+                            // If true, object is an archetype or subobject.
+                            else if( obj.Outer is UPackage == false && (deserializeFlags & DeserializeFlags.WithinStruct) == 0 )
+                            {
+                                // Object references
                                 // Unknown objects are only deserialized on demand.
                                 obj.BeginDeserializing();
-                                if( obj.Properties != null && obj.Properties.Count > 0 )
-                                {
-                                    propertyValue = obj.Decompile();
-                                    break;
-                                }
+                                propertyValue = obj.Decompile();
                             }
-                            
-                            // =CLASS'Package.Group(s)+.Name'
-                            if(obj.GetClassName() == "Class")
-                                propertyValue = $"ClassT<{obj.GetOuterGroup()}>()";
                             else
+                            {
+                                // Assets
+                                // =CLASS'Package.Group(s)+.Name'
                                 propertyValue = $"LoadAsset<{obj.GetClassName()}>(\"{obj.GetOuterGroup()}\")";
+                            }
                             propertyValue += String.Format( "/*Ref {0}\'{1}\'*/", obj.GetClassName(), obj.GetOuterGroup() );
                             break;
                         }
