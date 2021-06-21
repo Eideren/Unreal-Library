@@ -225,6 +225,8 @@ namespace UELib.Core
                     }
                     else
                     {
+                        if(operatorName == "||")
+                            return $"({rLeft} {operatorName} {rRight})";
                         return $"{rLeft} {operatorName} {rRight}";
                     }
                 }
