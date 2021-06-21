@@ -392,7 +392,7 @@ namespace UELib.Core
             {
                 if( string.IsNullOrWhiteSpace( code ) == false )
                     code += "\r\n";
-                code += UDecompilingState.Tabs + "\t#warning NATIVE FUNCTION !";
+                code += UDecompilingState.Tabs + "\t // #warning NATIVE FUNCTION !";
                 forceDefaultOut = true;
                 forceReturn = true;
             }
@@ -426,6 +426,16 @@ namespace UELib.Core
                     }
                 }
             }*/
+
+            using( UDecompilingState.TabScope() )
+            {
+                if( UnrealConfig.StubMode )
+                {   
+                    if( string.IsNullOrWhiteSpace( code ) == false )
+                        code += "\r\n";
+                    code += $"{UDecompilingState.Tabs}// stub";
+                }
+            }
 
             {
                 int balance = 0;
