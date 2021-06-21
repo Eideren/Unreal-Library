@@ -450,7 +450,7 @@ namespace UELib.Core
             if (forceReturn)
             {
                 if (HasFunctionFlag(Flags.FunctionFlags.Iterator))
-                    code += "\r\n\t" + UDecompilingState.Tabs + "yield return default;";
+                    code += "\r\n\t" + UDecompilingState.Tabs + "yield break;";
                 if (HasFunctionFlag(Flags.FunctionFlags.Latent))
                     code += "\r\n\t" + UDecompilingState.Tabs + "return default;";
                 if (ReturnProperty != null)
