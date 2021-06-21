@@ -31,6 +31,10 @@ namespace UELib.Core
                     {
                         returnValue = enumObject.ParseAsEnum(returnValue);
                     }
+                    if (returnValue.Length != 0 && ((Decompiler._Container as UFunction)?.ReturnProperty is UArrayProperty))
+                    {
+                        returnValue = $"{returnValue}.NewCopy()";
+                    }
 
                     Decompiler._CanAddSemicolon = true;
                     return "return" + (returnValue.Length != 0 ? " " + returnValue : String.Empty);

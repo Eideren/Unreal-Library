@@ -303,38 +303,43 @@ namespace UELib.Core
                         if( t is EndFunctionParmsToken ) // End ")"
                         {
                             output = new StringBuilder( output.ToString().TrimEnd( ',' ) + v );
+                            continue;
                         }
-                        else // Any passed values
+                        
+                        // Any passed values
+                        
+                        if( i != tokens.Count - 1 && i > 0 ) // Skipped optional parameters
                         {
-                            if( i != tokens.Count - 1 && i > 0 ) // Skipped optional parameters
-                            {
-                                output.Append( v == String.Empty ? "," : ", " );
-                            }
-
-
-                            if (p != null && (p.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
-                            {
-                                if(t is NoParmToken)
-                                    v = $"/*null*/NullRef.{p.GetFriendlyType().Replace('<', '_').Replace('>', '_').Replace('.', '_')}";
-                                v = $"ref/*probably?*/ {v}"; // UnrealScript's out is a pass by reference
-                            }
-                            else if (t is NoParmToken == false && (p as UByteProperty)?.EnumObject is UEnum enumObject)
-                            {
-                                v = enumObject.ParseAsEnum(v);
-                            }
-                            else if( t is NoParmToken && p != null )
-                            {
-                                v = $"default({p.GetFriendlyType()})";
-                            }
-
-                            if (p is UByteProperty bProp && /*Not for out/refs params*/(bProp.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) == 0 && bProp.EnumObject == null && int.TryParse(v, out _) == false)
-                            {
-                                v = $"(byte){v}"; // Casting enum to byte most likely
-                            }
-
-                            ParamsHack.Add(v);
-                            output.Append( v );
+                            output.Append( v == String.Empty ? "," : ", " );
                         }
+
+                        if (p != null && (p.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) != 0)
+                        {
+                            if(t is NoParmToken)
+                                v = $"/*null*/NullRef.{p.GetFriendlyType().Replace('<', '_').Replace('>', '_').Replace('.', '_')}";
+                            v = $"ref/*probably?*/ {v}"; // UnrealScript's out is a pass by reference
+                        }
+                        else if (t is NoParmToken == false && (p as UByteProperty)?.EnumObject is UEnum enumObject)
+                        {
+                            v = enumObject.ParseAsEnum(v);
+                        }
+                        else if( t is NoParmToken && p != null )
+                        {
+                            v = $"default({p.GetFriendlyType()})";
+                        }
+                        else if( p is UArrayProperty )
+                        {
+                            v = $"{v}.NewCopy()";
+                        }
+
+                        if (p is UByteProperty bProp && /*Not for out/refs params*/(bProp.PropertyFlags & (ulong) Flags.PropertyFlagsLO.OutParm) == 0 && bProp.EnumObject == null && int.TryParse(v, out _) == false)
+                        {
+                            v = $"(byte){v}"; // Casting enum to byte most likely
+                        }
+
+                        ParamsHack.Add(v);
+                        output.Append( v );
+                        
                     }
                     return output.ToString();
                 }
