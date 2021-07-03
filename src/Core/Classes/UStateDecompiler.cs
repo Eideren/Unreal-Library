@@ -71,7 +71,7 @@ namespace UELib.Core
                 output += " " + FormatExtends() + " " + Super.Name;
             }
 
-            output = $"protected (System.Action<name>, StateFlow, System.Action<name>) {Name}()/*{output}*/";
+            output = $"(System.Action<name>, StateFlow, System.Action<name>) {Name}()/*{output}*/";
             
             return output;
         }
