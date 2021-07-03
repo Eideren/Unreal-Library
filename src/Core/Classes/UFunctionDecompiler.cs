@@ -403,17 +403,6 @@ namespace UELib.Core
                 forceReturn = true;
             }
 
-            if (forceReturn == false 
-                && (ReturnProperty != null || HasFunctionFlag(Flags.FunctionFlags.Iterator))
-                // When the code doesn't end with return, add a default one with warning
-                // Make sure to ignore commented out returns
-                && Regex.Match(Regex.Replace(code, @"\/\/[^\n\r]*", _ => ""), @"return [^;]+;\s*$") is Match m && m.Success == false)
-            {
-                using (UDecompilingState.TabScope())
-                    code += $"\r\n{UDecompilingState.Tabs}#warning decompiling process did not include a return on the last line, added default return\r\n";
-                forceReturn = true;
-            }
-
             /* Unreal's Out is actually a pass by reference, therefore the function might actually only read from it, we shouldn't set default
             if (forceDefaultOut)
             {
