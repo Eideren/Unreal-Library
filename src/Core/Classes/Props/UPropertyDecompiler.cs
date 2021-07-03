@@ -93,7 +93,11 @@ namespace UELib.Core
 
         public override string GetFriendlyType()
         {
-            var concInter = HasSpecificDefaultValue() ? "?" : "";
+            var concInter = HasSpecificDefaultValue() 
+                            && this is UObjectProperty == false 
+                            && this is UDelegateProperty == false 
+                            && this is UInterfaceProperty == false 
+                ? "?" : "";
             var type = GetFriendlyPropType() ?? base.GetFriendlyType();
             if( IsArray )
             {
