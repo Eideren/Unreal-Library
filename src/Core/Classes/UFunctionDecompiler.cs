@@ -392,7 +392,7 @@ namespace UELib.Core
             {
                 if( string.IsNullOrWhiteSpace( code ) == false )
                     code += "\r\n";
-                code += UDecompilingState.Tabs + "\t // #warning NATIVE FUNCTION !";
+                code += UDecompilingState.Tabs + "\tNativeMarkers.MarkUnimplemented();";
                 forceDefaultOut = true;
                 forceReturn = true;
             }
