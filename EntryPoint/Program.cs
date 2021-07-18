@@ -1,34 +1,17 @@
-﻿using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
-using UELib;
-using UELib.Core;
-using static System.Console;
-
-public static class Eval
+﻿namespace EntryPoint
 {
-    public static string PrintData( List<UStruct.UByteCodeDecompiler.Token> decomp )
-    {
-        string str = "";
-        foreach (var token in decomp)
-        {
-            str += ($"@{token.Position}\t{token.GetType().Name}\t");
-            if(token is UStruct.UByteCodeDecompiler.JumpToken jt)
-                str += ($"-> {jt.CodeOffset}\t");
-            else if(token is UStruct.UByteCodeDecompiler.JumpIfNotToken jint)
-                str += ($"-> {jint.CodeOffset}\t");
-            str += "\n";
-        }
-        System.Console.Write(str);
+    using System.Reflection;
+    using UELib.Annotations;
+    using System.Collections.Generic;
+    using System.Diagnostics;
+    using System.IO;
+    using System.Linq;
+    using System.Text.RegularExpressions;
+    using UELib;
+    using UELib.Core;
+    using static System.Console;
 
-        return str;
-    }
-}
 
-namespace EntryPoint
-{
 
     class Program
     {
@@ -51,7 +34,7 @@ namespace EntryPoint
             "^Interaction$",
             "^Input$",
             "^PlayerInput$",
-            "^TdPlayerInput$",
+            "^TdPlayerInput",
             "^TdLookAtPoint$",
             "^SavedMove$",
             "^TdSavedMove$",
@@ -81,6 +64,7 @@ namespace EntryPoint
             "^TdPawn$",
             "^TdPlayerPawn$",
             
+            "^Controller$",
             "^TdController$",
             "^PlayerController$",
             "^GamePlayerController$",
@@ -91,6 +75,7 @@ namespace EntryPoint
             
             "^GameInfo$",
             "^TdLobbyGameInfo$",
+            "^TdGameInfo$",
             "^Td\\w*Game$",
             "^TdMenuGameInfo$",
             "^TdSPLevelRace$",
@@ -162,204 +147,79 @@ namespace EntryPoint
             }
         }
 
-        static IEnumerable<string> RepeatEnum( int count, System.Func<int, string> r )
+
+
+        static void Main( string[] args )
         {
-            for( int i = 0; i < count; i++ )
-            {
-                yield return r(i);
-            }
+            OutputUnrealScript();
         }
-        
-        static string Repeat(int count, System.Func<int, string> r, string joint = ", ")
+
+
+
+
+        static void DecompileAssetIn()
         {
-            return string.Join( joint, RepeatEnum( count, r ) );
-        }
-        
-        static void Main(string[] args)
-        {
-            goto REAL;
-            
-            UnrealConfig.SuppressComments = false;
-            var nnn = new NativesTablePackage();
-            nnn.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
-            var pacpapcpapc = UnrealLoader.LoadPackage(@"C:\UDK\UDK-2014-02\UDKGame\Script\UTEditor.u");
-            pacpapcpapc.NTLPackage = nnn;
-            pacpapcpapc.InitializePackage();
-            var stuff = pacpapcpapc.Objects.FirstOrDefault(x => x is UClass && x.Name == "UTUnrealEdEngine");
-            while (true)
-            {
-                var v = stuff.Decompile();
-                var tokens = (from x in (stuff as UClass).Functions select (x.Name, x.ByteCodeManager.DeserializedTokens)).ToArray();
-                System.Diagnostics.Debugger.Break();
-            }
-            return;
-            {
-            }
-            REAL:
             // Order matters here, from least to most derived
-            var paths = new []
+            var packages = PreparePackages(new []
             {
-                @"D:\MirrorsEdge\Tools\unpacked\Core.u",
-                @"D:\MirrorsEdge\Tools\unpacked\Engine.u",
-                @"D:\MirrorsEdge\Tools\unpacked\Editor.u",
-                @"D:\MirrorsEdge\Tools\unpacked\UnrealEd.u",
+                @"D:\MirrorsEdge\Tools\unpacked\AS_C1P_Unarmed.upk",
+            });
+            do
+            {
+                HashSet<string> s = new HashSet<string>();
+                var package = packages.First( x => x.PackageName.Contains( "AS_C1P_Unarmed" ) );
                 
-                @"D:\MirrorsEdge\Tools\unpacked\Fp.u",
-                @"D:\MirrorsEdge\Tools\unpacked\Tp.u",
-                @"D:\MirrorsEdge\Tools\unpacked\Ts.u",
-                @"D:\MirrorsEdge\Tools\unpacked\IpDrv.u",
-                @"D:\MirrorsEdge\Tools\unpacked\GameFramework.u",
+                foreach( var uObject in package.Objects )
+                {
+                    if( uObject is UnknownObject )
+                    {
+                        s.Add( uObject.Class.Name );
+                    }
+                    else if( uObject.Name == "AS_C1P_Unarmed" )
+                    {
+                        Output( uObject, @"D:\MirrorsEdge\StillAlive\Assets\Source\Asset", packages );
+                    }
+                }
+
+                    
+                WriteLine( " --- NOT IMPLEMENTED --- " );
+                foreach( string s1 in s )
+                    WriteLine( s1 );
                 
-                @"D:\MirrorsEdge\Tools\unpacked\TdGame.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdMenuContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdMpContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdSharedContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdSpBossContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdSpContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdTTContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdTuContent.u",
-                @"D:\MirrorsEdge\Tools\unpacked\TdEditor.u",
-            };
+                Debugger.Break();
+            } while( Debugger.IsAttached );
 
-            var packages = new List<(UnrealPackage package, string path)>(); // List to keep the right order
-            var NTL = new NativesTablePackage();
-            NTL.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
-            WriteLine("\tLoading packages");
-            foreach (string pFile in paths)
+
+
+            static void Output(UObject c, string outPath, UnrealPackage[] packages)
             {
-                var package = UnrealLoader.LoadPackage(pFile);
-                package.NTLPackage = NTL;
-                packages.Add((package, pFile));
+                outPath = Path.Combine( outPath, $"{c.Name}.cs" );
+                Directory.CreateDirectory(Path.GetDirectoryName(outPath));
+
+                var decompilation = c.Decompile();
+                decompilation = decompilation.Replace("\r\n", "\r\n\t");
+                
+                var usings = string.Join(" ", from i in packages where i.PackageName != c.Package.PackageName select $"using {i};");
+                File.WriteAllText(outPath, $"namespace MEdge.Source{{\n{usings}\n\npublic static partial class Asset\n{{\n\tpublic static {c.Class.Name} Get{c.Name} => {decompilation};\n}}\n}}");
+                WriteLine( $"Decompiled '{c.Name}' to '{outPath}'" );
             }
-
-            WriteLine("\tFixing imports");
-            foreach (var (package, path) in packages)
-            {
-                WriteLine($"\t\t{package.PackageName}");
-                package.InitializePackage(UnrealPackage.InitFlags.RegisterClasses );
-                package.InitializeExportObjects();
-            }
+        }
 
 
-            {
-                var Url = new Dictionary<string, Dictionary<string, List<UExportTableItem>>>();
-                foreach( var o in
-                    from p in packages
-                    from o in p.package.Exports
-                    where ( o.Object is UnknownObject ) == false
-                    select o )
-                {
-                    if( Url.TryGetValue( o.ClassName, out var objNameDictionary ) == false )
-                        Url.Add( o.ClassName, objNameDictionary = new Dictionary<string, List<UExportTableItem>>() );
-                    if( objNameDictionary.TryGetValue( o.ObjectName.Name, out var objNameList ) == false )
-                        objNameDictionary.Add( o.ObjectName.Name, objNameList = new List<UExportTableItem>() );
-                    objNameList.Add( o );
-                }
 
-                foreach (var (package, path) in packages)
-                {
-                    WriteLine($"\t\t{package.PackageName}");
-                    foreach (var tableItem in package.Imports)
-                    {
-                        UObject result = null;
-                        if (tableItem.ClassName == "Package")
-                            continue;
 
-                        if( Url.TryGetValue( tableItem.ClassName, out var objNameDictionary ) == false 
-                            || objNameDictionary.TryGetValue( tableItem.ObjectName.Name, out var objNameList ) == false )
-                            continue;
 
-                        foreach( var o in objNameList )
-                        {
-                            if( InheritanceMatch( tableItem, o ) )
-                            {
-                                if (result != null)
-                                    Debugger.Break();
-                                else
-                                    result = o.Object;
-                    
-                                if (tableItem.PackageName == o.Object.Package.PackageName)
-                                    break;
-                            }
-                        }
 
-                        if (result != null)
-                            tableItem.Object = result;
-                    }
-                }
 
-            }
-            
-            WriteLine("\tInitializing packages");
-            foreach (var (package, path) in packages)
-            {
-                WriteLine($"\t\t{package.PackageName}");
-                package.InitializePackage(UnrealPackage.InitFlags.All & ~UnrealPackage.InitFlags.RegisterClasses);
-            }
-            
-            UnrealConfig.SharedPackages.Clear();
-            foreach (var kvp in packages)
-                UnrealConfig.SharedPackages.Add(kvp.package);
-
-            // Mark functions overriden by states as such to generate delegate variable for those functions in the decompilation process
-            WriteLine("\tMarking state-overriden functions");
-            foreach (var refFunction in from p in packages
-                from o in EnumerateObjectAndImportExport(p.package)
-                where o is UState && (o is UClass == false)
-                from function in (o as UState).Functions
-                select function)
-            {
-                if (refFunction.Super == null)
-                {
-                    foreach (var f in 
-                        from c in EnumerateInheritance(refFunction.Outer.Outer as UClass) 
-                        from f in c.Functions 
-                        where f.Name == refFunction.Name 
-                              && f.Params.Count == refFunction.Params.Count 
-                              && f.ReturnProperty?.GetFriendlyType() == refFunction.ReturnProperty?.GetFriendlyType()
-                              select f)
-                    {
-                        for (int i = f.Params.Count - 1; i >= 0; i--)
-                        {
-                            if (f.Params[i].GetFriendlyType() != refFunction.Params[i].GetFriendlyType())
-                                goto NEXT_FUNC;
-                        }
-
-                        refFunction.Super = f;
-                        
-                        NEXT_FUNC:{ }
-                    }
-                }
-
-                foreach (var f in EnumerateInheritance(refFunction))
-                {
-                    if (f.SelfOverridenByState)
-                        continue;
-                    
-                    f.SelfOverridenByState = true;
-                    
-                    foreach (var sameFuncInOtherPackages in 
-                        from package in packages
-                        from obj in EnumerateObjectAndImportExport(package.package)
-                        where obj is UState && obj.Name == f.Outer.Name // pick objects whose name matches the class name of the function
-                        from func in (obj as UState).Functions
-                        where func.Name == f.Name// pick functions matching the full definition of the reference one, ignore those already processed
-                        select func) // Find any function matching the refFunction's description in other packages
-                    {
-                        sameFuncInOtherPackages.SelfOverridenByState = true;
-                    }
-                }
-            }
-
-            HashSet<string> packageName = new HashSet<string>();
-            foreach (var p in packages)
-                packageName.Add(p.package.PackageName);
+        static void OutputUnrealScript()
+        {
+            var packages = PreparePackages(null);
 
             Dictionary<string, UClass> validClasses = new Dictionary<string, UClass>();
             List<UClass> selectedClasses = new List<UClass>();
             List<UClass> stubClasses = new List<UClass>();
             foreach (var c in from p in packages
-                from o in p.package.Objects
+                from o in p.Objects
                 where o is UClass c 
                       && c.Outer is UClass == false
                       && (c.Outer == null || (c.Outer is UPackage p2 && p2.Name == c.Package.PackageName))
@@ -379,7 +239,7 @@ namespace EntryPoint
             }
 
             foreach( var c in from p in packages
-                from o in p.package.Objects
+                from o in p.Objects
                 where o is UClass || o is UObjectProperty
                 select o as UField )
             {
@@ -418,15 +278,15 @@ namespace EntryPoint
 
                 UnrealConfig.StubMode = false;
                 foreach( UClass c in selectedClasses )
-                    Output( @"D:\MirrorsEdge\Deadpoint\Assets\Source\Converted", c, packageName );
+                    Output( @"D:\MirrorsEdge\StillAlive\Assets\Source\Integration\Converted", c, packages );
 
                 WriteLine("-- Starting stubs --");
                 
                 UnrealConfig.StubMode = true;
                 foreach( UClass c in stubClasses )
-                    Output( @"D:\MirrorsEdge\Deadpoint\Assets\Source\Stubs", c, packageName );
+                    Output( @"D:\MirrorsEdge\StillAlive\Assets\Source\Integration\Stubs", c, packages );
                 
-                static void Output(string destFolder, UClass c, HashSet<string> packageNames)
+                static void Output(string destFolder, UClass c, UnrealPackage[] packages)
                 {
                     string packageName = c.Package.PackageName;
                     if( packageName == "Editor" )
@@ -434,7 +294,8 @@ namespace EntryPoint
                     
                     var outPath = @$"{destFolder}\{packageName}\{c.Name}.cs";
 
-                    if (File.Exists(outPath) && (from x in File.ReadLines(outPath) where x.Contains("NO OVERWRITE") select x).FirstOrDefault() != null)
+                    var isNoOverwrite = ( ( File.Exists( outPath ) && ( from x in File.ReadLines( outPath ) where x.Contains( "NO OVERWRITE" ) select x ).FirstOrDefault() != null ) );
+                    if ( isNoOverwrite )
                     {
                         WriteLine("SKIP\t"+c.Name);
                         return;
@@ -444,9 +305,11 @@ namespace EntryPoint
 
                     var decompilation = c.Decompile();
                     decompilation = decompilation.Replace("\r\n", "\r\n\t");
+                    decompilation = decompilation.Replace("\r", "");
                     Directory.CreateDirectory(Path.GetDirectoryName(outPath));
-                    var usings = string.Join(" ", from i in packageNames where i != c.Package.PackageName select $"using {i};");
-                    File.WriteAllText(outPath, $"namespace MEdge.{c.Package.PackageName}{{\n{usings}\n\n{decompilation}\n}}");
+                    var usings = string.Join(" ", from i in packages where i.PackageName != c.Package.PackageName select $"using {i};");
+                    string prefix = isNoOverwrite ? "// NO OVERWRITE\n\n" : "";
+                    File.WriteAllText(outPath, $"{prefix}namespace MEdge.{c.Package.PackageName}{{\n{usings}\n\n{decompilation}\n}}");
                 }
                 
                 WriteLine("--DONE--");
@@ -456,6 +319,176 @@ namespace EntryPoint
                 else
                     break;
             }
+        }
+
+
+
+        static UnrealPackage[] PreparePackages([ CanBeNull ] IEnumerable<string> additionalPackages)
+        {
+            var paths = new List<string>
+            {
+                @"D:\MirrorsEdge\Tools\unpacked\Core.u",
+                @"D:\MirrorsEdge\Tools\unpacked\Engine.u",
+                @"D:\MirrorsEdge\Tools\unpacked\Editor.u",
+                @"D:\MirrorsEdge\Tools\unpacked\UnrealEd.u",
+                
+                @"D:\MirrorsEdge\Tools\unpacked\Fp.u",
+                @"D:\MirrorsEdge\Tools\unpacked\Tp.u",
+                @"D:\MirrorsEdge\Tools\unpacked\Ts.u",
+                @"D:\MirrorsEdge\Tools\unpacked\IpDrv.u",
+                @"D:\MirrorsEdge\Tools\unpacked\GameFramework.u",
+                
+                @"D:\MirrorsEdge\Tools\unpacked\TdGame.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdMenuContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdMpContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdSharedContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdSpBossContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdSpContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdTTContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdTuContent.u",
+                @"D:\MirrorsEdge\Tools\unpacked\TdEditor.u",
+            };
+            if(additionalPackages != null)
+                paths.AddRange(additionalPackages);
+
+            var packages = new List<UnrealPackage>(); // List to keep the right order
+            var NTL = new NativesTablePackage();
+            NTL.LoadPackage( @"C:\Program Files (x86)\Eliot\UE Explorer\Native Tables\NativesTableList_UT3" );
+            WriteLine("\tLoading packages");
+
+            var additionalObjects = Assembly.GetExecutingAssembly().GetTypes().Where( x => x.IsAssignableTo( typeof(UObject) ) ).ToArray();
+            
+            foreach (string pFile in paths)
+            {
+                var package = UnrealLoader.LoadPackage(pFile);
+
+                foreach( var type in additionalObjects )
+                    package.AddClassType( type.Name, type );
+                
+                package.NTLPackage = NTL;
+                packages.Add(package);
+            }
+
+            WriteLine("\tFixing imports");
+            foreach (var package in packages)
+            {
+                WriteLine($"\t\t{package.PackageName}");
+                package.InitializePackage(UnrealPackage.InitFlags.RegisterClasses );
+                package.InitializeExportObjects();
+            }
+
+
+            {
+                var Url = new Dictionary<string, Dictionary<string, List<UExportTableItem>>>();
+                foreach( var o in
+                    from p in packages
+                    from o in p.Exports
+                    where ( o.Object is UnknownObject ) == false
+                    select o )
+                {
+                    if( Url.TryGetValue( o.ClassName, out var objNameDictionary ) == false )
+                        Url.Add( o.ClassName, objNameDictionary = new Dictionary<string, List<UExportTableItem>>() );
+                    if( objNameDictionary.TryGetValue( o.ObjectName.Name, out var objNameList ) == false )
+                        objNameDictionary.Add( o.ObjectName.Name, objNameList = new List<UExportTableItem>() );
+                    objNameList.Add( o );
+                }
+
+                foreach (var package in packages)
+                {
+                    WriteLine($"\t\t{package.PackageName}");
+                    foreach (var tableItem in package.Imports)
+                    {
+                        UObject result = null;
+                        if (tableItem.ClassName == "Package")
+                            continue;
+
+                        if( Url.TryGetValue( tableItem.ClassName, out var objNameDictionary ) == false 
+                            || objNameDictionary.TryGetValue( tableItem.ObjectName.Name, out var objNameList ) == false )
+                            continue;
+
+                        foreach( var o in objNameList )
+                        {
+                            if( InheritanceMatch( tableItem, o ) )
+                            {
+                                if (result != null)
+                                    Debugger.Break();
+                                else
+                                    result = o.Object;
+                    
+                                if (tableItem.PackageName == o.Object.Package.PackageName)
+                                    break;
+                            }
+                        }
+
+                        if (result != null)
+                            tableItem.Object = result;
+                    }
+                }
+
+            }
+            
+            WriteLine("\tInitializing packages");
+            foreach (var package in packages)
+            {
+                WriteLine($"\t\t{package.PackageName}");
+                package.InitializePackage(UnrealPackage.InitFlags.All & ~UnrealPackage.InitFlags.RegisterClasses);
+            }
+            
+            UnrealConfig.SharedPackages.Clear();
+            foreach (var package in packages)
+                UnrealConfig.SharedPackages.Add(package);
+
+            // Mark functions overriden by states as such to generate delegate variable for those functions in the decompilation process
+            WriteLine("\tMarking state-overriden functions");
+            foreach (var refFunction in from p in packages
+                from o in EnumerateObjectAndImportExport(p)
+                where o is UState && (o is UClass == false)
+                from function in (o as UState).Functions
+                select function)
+            {
+                if (refFunction.Super == null)
+                {
+                    foreach (var f in 
+                        from c in EnumerateInheritance(refFunction.Outer.Outer as UClass) 
+                        from f in c.Functions 
+                        where f.Name == refFunction.Name 
+                              && f.Params.Count == refFunction.Params.Count 
+                              && f.ReturnProperty?.GetFriendlyType() == refFunction.ReturnProperty?.GetFriendlyType()
+                              select f)
+                    {
+                        for (int i = f.Params.Count - 1; i >= 0; i--)
+                        {
+                            if (f.Params[i].GetFriendlyType() != refFunction.Params[i].GetFriendlyType())
+                                goto NEXT_FUNC;
+                        }
+
+                        refFunction.Super = f;
+                        
+                        NEXT_FUNC:{ }
+                    }
+                }
+
+                foreach (var f in EnumerateInheritance(refFunction))
+                {
+                    if (f.SelfOverridenByState)
+                        continue;
+                    
+                    f.SelfOverridenByState = true;
+                    
+                    foreach (var sameFuncInOtherPackages in 
+                        from package in packages
+                        from obj in EnumerateObjectAndImportExport(package)
+                        where obj is UState && obj.Name == f.Outer.Name // pick objects whose name matches the class name of the function
+                        from func in (obj as UState).Functions
+                        where func.Name == f.Name// pick functions matching the full definition of the reference one, ignore those already processed
+                        select func) // Find any function matching the refFunction's description in other packages
+                    {
+                        sameFuncInOtherPackages.SelfOverridenByState = true;
+                    }
+                }
+            }
+
+            return packages.ToArray();
         }
     }
 }
