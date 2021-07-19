@@ -228,7 +228,7 @@ namespace UELib.Core
                 try
                 {
                     // Fix for properties within structs
-                    output += "\r\n" + property.PreDecompile() + UDecompilingState.Tabs + "public";
+                    string category = "";
                     try
                     {
                         if( property.CategoryIndex > -1
@@ -237,20 +237,48 @@ namespace UELib.Core
                         {
                             if( property.CategoryName != Name )
                             {
-                                output += "/*(" + property.CategoryName + ")*/";
+                                category += $"[Category(\"{property.CategoryName}\")] ";
                             }
                             else
                             {
-                                output += "/*()*/";
+                                category += "[Category] ";
                             }
                         }
                     }
                     catch( ArgumentOutOfRangeException )
                     {
-                        output += String.Format( "/* INDEX:{0} */", property.CategoryIndex );
+                        category += String.Format( "/* INDEX:{0} */", property.CategoryIndex );
                     }
 
-                    output += " " + property.Decompile();
+                    string flags = "";
+                    foreach( var flag in property.EnumerableFormatFlags() )
+                    {
+                        var mod = flag;
+                        if( mod == "const" )
+                            mod = "Const";
+                        
+                        if( string.IsNullOrWhiteSpace( flags ) )
+                            flags = mod;
+                        else
+                            flags += $", {mod}";
+                    }
+                    if( string.IsNullOrWhiteSpace( flags ) == false )
+                    {
+                        flags = $"[{flags}] ";
+                    }
+
+                    var accessMod = "public";
+                    if( property.IsPrivate() )
+                        accessMod += "/*private*/";
+                    else if( property.IsProtected() )
+                        accessMod += "/*protected*/";
+
+                    var flagsToRemove = property.FormatFlags();
+                    var prop = property.Decompile();
+                    if( string.IsNullOrWhiteSpace( flagsToRemove ) == false )
+                        prop = prop.Remove( prop.IndexOf( flagsToRemove ), flagsToRemove.Length );
+
+                    output += $"\r\n{property.PreDecompile()}{UDecompilingState.Tabs}{category}{flags}{accessMod} {prop}";
                     
                     if( this is UClass c2 && c2.IsClassInterface() )
                     {
